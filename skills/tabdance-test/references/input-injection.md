@@ -8,6 +8,7 @@ Reference for injecting keyboard and mouse input into headless terminals in tabd
 
 ```
 Agent request (key name + mods)
+  → normalizeKey(key) → snake_case key name
   → libghostty.ParseKey(key) → libghostty.Key
   → libghostty.ParseMods(mods) → libghostty.Mods
   → Create KeyEvent
@@ -18,25 +19,33 @@ Agent request (key name + mods)
 
 ### Key Name Parsing
 
-The MCP `send_keys` tool accepts key names in W3C format, parsed by `libghostty.ParseKey`:
+The MCP `send_keys` tool accepts key names in **both** W3C PascalCase and
+libghostty snake_case format. PascalCase names are automatically normalized to
+snake_case before being passed to `libghostty.ParseKey`.
 
-| Input | libghostty.Key |
-|-------|---------------|
-| `KeyA` through `KeyZ` | `KeyA` through `KeyZ` |
-| `a` through `z` | `KeyA` through `KeyZ` (physical key) |
-| `Enter` | `KeyEnter` |
-| `Tab` | `KeyTab` |
-| `Escape` | `KeyEscape` |
-| `Backspace` | `KeyBackspace` |
-| `Delete` | `KeyDelete` |
-| `Insert` | `KeyInsert` |
-| `Home` | `KeyHome` |
-| `End` | `KeyEnd` |
-| `PageUp` | `KeyPageUp` |
-| `PageDown` | `KeyPageDown` |
-| `ArrowUp/Down/Left/Right` | `KeyArrowUp/Down/Left/Right` |
-| `F1` through `F25` | `KeyF1` through `KeyF25` |
-| `Space` | `KeySpace` |
+**Prefer W3C PascalCase** (e.g. `Tab`, `ArrowDown`) — it is more natural for
+agents and matches the W3C UI Events spec. snake_case (e.g. `tab`, `arrow_down`)
+is also accepted for compatibility.
+
+| W3C PascalCase | snake_case | libghostty.Key |
+|-----------------|-----------|---------------|
+| `KeyA` through `KeyZ` | `key_a` through `key_z` | `KeyA` through `KeyZ` |
+| `a` through `z` | — | `KeyA` through `KeyZ` (physical key) |
+| `Enter` | `enter` | `KeyEnter` |
+| `Tab` | `tab` | `KeyTab` |
+| `Escape` | `escape` | `KeyEscape` |
+| `Backspace` | `backspace` | `KeyBackspace` |
+| `Delete` | `delete` | `KeyDelete` |
+| `Insert` | `insert` | `KeyInsert` |
+| `Home` | `home` | `KeyHome` |
+| `End` | `end` | `KeyEnd` |
+| `PageUp` | `page_up` | `KeyPageUp` |
+| `PageDown` | `page_down` | `KeyPageDown` |
+| `ArrowUp/Down/Left/Right` | `arrow_up/down/left/right` | `KeyArrowUp/Down/Left/Right` |
+| `F1` through `F25` | `f1` through `f25` | `KeyF1` through `KeyF25` |
+| `Space` | `space` | `KeySpace` |
+| `Numpad0` through `Numpad9` | `numpad_0` through `numpad_9` | `KeyNumpad0` through `KeyNumpad9` |
+| `Digit0` through `Digit9` | `digit_0` through `digit_9` | `KeyDigit0` through `KeyDigit9` |
 
 ### Modifier Parsing
 
@@ -67,7 +76,7 @@ func SendKeys(enc *libghostty.KeyEncoder, ptmxWriter io.Writer, term *libghostty
             continue
         }
 
-        key, _ := libghostty.ParseKey(k.Key)
+        key, _ := libghostty.ParseKey(normalizeKey(k.Key))
         var mods libghostty.Mods
         if k.Mods != "" {
             mods, _ = libghostty.ParseMods(k.Mods)

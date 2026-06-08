@@ -91,7 +91,7 @@ Send key events to a terminal. Encodes keys using KeyEncoder synced to terminal 
 }
 ```
 
-**Key format**: W3C key names (`KeyA`, `Enter`, `ArrowUp`, `F1`, etc.) or literal characters. Mods: `ctrl`, `alt`, `shift`, `super` (combinable with `+`).
+**Key format**: W3C PascalCase key names (`Tab`, `Enter`, `ArrowUp`, `F1`, `KeyA`, etc.) or libghostty snake_case (`tab`, `enter`, `arrow_up`, `f1`, `key_a`). Both formats are accepted — PascalCase is preferred. Mods: `ctrl`, `alt`, `shift`, `super` (combinable with `+`).
 
 #### `send_text`
 

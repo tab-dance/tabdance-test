@@ -129,6 +129,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Zig version**: System Zig 0.16.0 is incompatible. Use Zig 0.15.2 (set via `ZIG` make variable, defaults to `/tmp/zig-x86_64-linux-0.15.2/zig`).
 - **Build command**: `make build-static` (builds libghostty-vt from submodule + compiles Go). Don't use bare `go build`.
 - **`KeyUnknown` doesn't exist**: Use `KeyUnidentified` (value 0) as the zero/unknown sentinel for `libghostty.Key`.
+- **`send_keys` accepts both PascalCase and snake_case key names**: `libghostty.ParseKey` only accepts snake_case (e.g. `tab`, `arrow_down`), but `SendKeys` normalizes W3C PascalCase names (e.g. `Tab`, `ArrowDown`) to snake_case automatically via `normalizeKey()`. Prefer PascalCase in MCP requests.
 - **`MousePosition` uses `float32`**: Not `uint32` or `int`.
 - **`Graphemes()` returns `[]uint32`**: Not a string — must convert codepoints to runes.
 - **`CellWideWide`**: Not `CellWideYes`. Other constants: `CellWideNarrow`, `CellWideSpacerHead`, `CellWideSpacerTail`.
