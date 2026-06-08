@@ -11,19 +11,23 @@ tabdance-test enables AI agents to test Bubble Tea applications by:
 4. Verifying output against golden files
 5. Recording sessions as asciinema files
 
-## Launching a Bubble Tea App
+## Launching a Shell for Testing
 
-### Via PTY (Full Process)
+Always start a shell (e.g., `bash`) and trigger tabdance's completion menu by pressing Tab after a command. This mirrors real usage — tabdance is a shell completion menu, not a standalone TUI.
 
 ```json
-{
-  "tool": "create_terminal",
-  "arguments": {
-    "cols": 108,
-    "rows": 24,
-    "command": "./tabdance select --out bash:/tmp/td-out"
-  }
-}
+// 1. Create terminal with bash
+{"tool": "create_terminal", "arguments": {"cols": 108, "rows": 24, "command": "bash", "working_directory": "/tmp/tabdance-test"}}
+
+// 2. Wait for shell prompt
+{"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "\\$|❯", "timeout": 5}}
+
+// 3. Type a command and press Tab to trigger completion menu
+{"tool": "send_text", "arguments": {"terminal_id": "term_1", "text": "git "}}
+{"tool": "send_keys", "arguments": {"terminal_id": "term_1", "keys": [{"key": "Tab"}]}}
+
+// 4. Wait for tabdance menu to render
+{"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "SELECT", "timeout": 5}}
 ```
 
 ### Via Go Test (In-Process)
@@ -62,36 +66,53 @@ For Bubble Tea testing details, see the **bubbletea** skill → `references/test
 A typical agent-driven test session:
 
 ```
-1. create_terminal → launch tabdance
-2. wait_for /prompt/ → wait for app to render
-3. get_view → verify initial state
-4. send_keys ["j", "j", "Enter"] → navigate and select
-5. wait_for /selected/ → wait for selection
-6. get_view → verify selection result
-7. verify_output → compare against golden file
-8. stop_recording → save asciinema recording
-9. close_terminal → cleanup
+1. create_terminal (bash) → launch shell
+2. wait_for (prompt) → wait for shell ready
+3. send_text ("git ") + send_keys (Tab) → trigger completion menu
+4. wait_for ("SELECT") → wait for tabdance to render
+5. send_keys (ArrowDown, Enter) → navigate and select
+6. wait_for /verify_output → verify result
+7. stop_recording → save asciinema recording
+8. close_terminal → cleanup
 ```
 
-## Testing Tabdance Specifically
+## Testing Completion Menus
 
-### Completion Menu
+### Git Completion
 
 ```json
-// 1. Create terminal with tabdance
-{"tool": "create_terminal", "arguments": {"cols": 108, "rows": 24, "command": "tabdance select --out bash:/tmp/td-out"}}
+// 1. Create terminal with bash
+{"tool": "create_terminal", "arguments": {"cols": 108, "rows": 24, "command": "bash", "working_directory": "/tmp/tabdance-test"}}
 
-// 2. Wait for menu to render
-{"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "tabdance", "timeout": 5}}
+// 2. Wait for shell prompt
+{"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "\\$|❯", "timeout": 5}}
 
-// 3. Navigate down
+// 3. Type "git " and press Tab to trigger completion
+{"tool": "send_text", "arguments": {"terminal_id": "term_1", "text": "git "}}
+{"tool": "send_keys", "arguments": {"terminal_id": "term_1", "keys": [{"key": "Tab"}]}}
+
+// 4. Wait for tabdance menu
+{"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "SELECT", "timeout": 5}}
+
+// 5. Navigate and select
 {"tool": "send_keys", "arguments": {"terminal_id": "term_1", "keys": [{"key": "ArrowDown"}]}}
-
-// 4. Select item
 {"tool": "send_keys", "arguments": {"terminal_id": "term_1", "keys": [{"key": "Enter"}]}}
 
-// 5. Verify output
-{"tool": "verify_output", "arguments": {"terminal_id": "term_1", "golden_path": "/tmp/tabdance-test/testdata/golden/completion-plain.txt", "format": "plain"}}
+// 6. Verify output
+{"tool": "verify_output", "arguments": {"terminal_id": "term_1", "golden_path": "/tmp/tabdance-test/testdata/golden/git-completion-plain.txt", "format": "plain"}}
+```
+
+### Tabdance Themes Completion
+
+Tabdance itself is registered as a completion, so `tabdance themes <Tab>` triggers the theme chooser:
+
+```json
+// Type "tabdance themes " and press Tab
+{"tool": "send_text", "arguments": {"terminal_id": "term_1", "text": "tabdance themes "}}
+{"tool": "send_keys", "arguments": {"terminal_id": "term_1", "keys": [{"key": "Tab"}]}}
+
+// Wait for theme chooser TUI
+{"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "SELECT", "timeout": 5}}
 ```
 
 ### Context Preview
@@ -148,15 +169,15 @@ Set Width 108
 Set Height 24
 Set TypingSpeed 100ms
 
-Type "tabdance select --out bash:/tmp/td-out"
-Enter
-Wait /tabdance/
-Sleep 1
+Type "git "
+Tab
+Wait /SELECT/
+Sleep 500ms
 ArrowDown
 ArrowDown
 Sleep 500ms
 Enter
-Wait /selected/
+Wait /checkout/
 Sleep 1
 ```
 
@@ -215,19 +236,20 @@ Only commit golden files to the project's `testdata/` when they're stable and me
 When testing a CLI tool that requires shell features (completion, pipes, env vars), launch `bash` first, then send commands via `send_text`:
 
 ```json
-// 1. Create terminal with bash in the project directory
+// 1. Create terminal with bash
 {"tool": "create_terminal", "arguments": {"cols": 108, "rows": 24, "command": "bash", "working_directory": "/tmp/tabdance-test"}}
 
 // 2. Wait for shell prompt
 {"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "\\$|❯", "timeout": 5}}
 
-// 3. Send command as text (not send_keys — send_text sends raw bytes to PTY)
-{"tool": "send_text", "arguments": {"terminal_id": "term_1", "text": "tabdance select tabdance themes ''\n"}}
+// 3. Type command and press Tab to trigger completion
+{"tool": "send_text", "arguments": {"terminal_id": "term_1", "text": "git "}}
+{"tool": "send_keys", "arguments": {"terminal_id": "term_1", "keys": [{"key": "Tab"}]}}
 
-// 4. Wait for TUI to render
+// 4. Wait for tabdance menu to render
 {"tool": "wait_for", "arguments": {"terminal_id": "term_1", "pattern": "SELECT", "timeout": 5}}
 
-// 5. Navigate using send_keys (now works for special keys)
+// 5. Navigate using send_keys
 {"tool": "send_keys", "arguments": {"terminal_id": "term_1", "keys": [{"key": "ArrowDown"}, {"key": "ArrowDown"}]}}
 
 // 6. Or use a small VHS tape for key sequences
@@ -247,7 +269,7 @@ For complex test flows, use MCP tools for waiting/verification and small VHS tap
 
 ```
 1. create_terminal (bash) + wait_for (prompt)
-2. send_text (command + \n) + wait_for (TUI renders)
+2. send_text ("git ") + send_keys (Tab) + wait_for (SELECT)
 3. update_golden (to /tmp/.../testdata/golden/initial.txt)
 4. play_tape (from /tmp/.../navigate.tape: Down, Down, Sleep)
 5. get_view (verify navigation)
