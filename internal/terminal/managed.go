@@ -269,3 +269,9 @@ func (m *ManagedTerminal) Write(data []byte) (int, error) {
 
 func (m *ManagedTerminal) Lock()   { m.mu.Lock() }
 func (m *ManagedTerminal) Unlock() { m.mu.Unlock() }
+
+func (m *ManagedTerminal) GetTerminal() *libghostty.Terminal    { return m.Terminal }
+func (m *ManagedTerminal) GetKeyEncoder() *libghostty.KeyEncoder { return m.KeyEncoder }
+func (m *ManagedTerminal) GetMouseEncoder() *libghostty.MouseEncoder {
+	return m.MouseEncoder
+}

@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/tab-dance/tabdance-test/internal/input"
 	"github.com/tab-dance/tabdance-test/internal/inspect"
+	"github.com/tab-dance/tabdance-test/internal/tape"
 	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
@@ -145,6 +147,13 @@ func (s *Server) registerTools() {
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 		mcp.WithString("label", mcp.Required(), mcp.Description("Marker label")),
 	), s.handleAddMarker)
+
+	s.mcp.AddTool(mcp.NewTool("play_tape",
+		mcp.WithDescription("Play a VHS tape file (.tape) in a terminal, executing each command sequentially"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithString("tape_path", mcp.Required(), mcp.Description("Path to the .tape file")),
+		mcp.WithNumber("timeout", mcp.Description("Timeout in seconds for Wait commands (default: 30)")),
+	), s.handlePlayTape)
 }
 
 func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -554,4 +563,30 @@ func (s *Server) handleAddMarker(_ context.Context, req mcp.CallToolRequest) (*m
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("marker %q added", label)), nil
+}
+
+func (s *Server) handlePlayTape(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	tapePath, err := req.RequireString("tape_path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	timeout := time.Duration(req.GetInt("timeout", 30)) * time.Second
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	executor := tape.NewTapeExecutor(mt, timeout)
+	if err := executor.Execute(tapePath); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("tape %q executed", tapePath)), nil
 }
