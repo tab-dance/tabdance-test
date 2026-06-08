@@ -7,14 +7,15 @@ tabdance-test is an MCP server for headless terminal testing using [go-libghostt
 ## Essential Commands
 
 ```sh
-make build-static           # Build with static libghostty-vt linking (default)
-make build-dynamic         # Build with dynamic linking (needs LD_LIBRARY_PATH)
-make test                  # Run tests (needs PKG_CONFIG_PATH + LD_LIBRARY_PATH)
+make build-static           # Build libghostty-vt + static link (default)
+make build-dynamic         # Build libghostty-vt + dynamic link
+make build-lib             # Build libghostty-vt from submodule only
+make test                  # Build + run tests
 make clean                 # Remove binary
 make run                   # Build dynamic + run
 ```
 
-Build requires `PKG_CONFIG_PATH` pointing to ghostty's `zig-out/share/pkgconfig` (set via `GHOSTTY_DIR` in Makefile, defaults to `~/Documents/development/github/ghostty-org/ghostty`).
+Ghostty is included as a git submodule at `deps/ghostty` (pinned to commit `cb36966a752982014827a9cabcf630ec3788b3d9`). The `build-lib` target compiles `libghostty-vt` from the submodule using Zig. All other build targets depend on `build-lib` automatically. Requires Zig 0.15.2 (set via `ZIG` make variable, defaults to `/tmp/zig-x86_64-linux-0.15.2/zig`).
 
 ## Architecture & Data Flow
 
@@ -124,9 +125,9 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## Gotchas
 
-- **libghostty-vt must be built from source**: System-installed version is too old. Must build from ghostty source at the commit pinned by go-libghostty (`cb36966a752982014827a9cabcf630ec3788b3d9`).
-- **Zig version**: System Zig 0.16.0 is incompatible. Use Zig 0.15.2 (downloaded to `/tmp/zig-x86_64-linux-0.15.2/`).
-- **Build command**: `make build-static` (sets PKG_CONFIG_PATH automatically). Don't use bare `go build`.
+- **libghostty-vt is built from git submodule**: Ghostty source is at `deps/ghostty` (pinned to `cb36966a752982014827a9cabcf630ec3788b3d9`). Run `make build-lib` to compile, or any `make build-*` target which depends on it.
+- **Zig version**: System Zig 0.16.0 is incompatible. Use Zig 0.15.2 (set via `ZIG` make variable, defaults to `/tmp/zig-x86_64-linux-0.15.2/zig`).
+- **Build command**: `make build-static` (builds libghostty-vt from submodule + compiles Go). Don't use bare `go build`.
 - **`KeyUnknown` doesn't exist**: Use `KeyUnidentified` (value 0) as the zero/unknown sentinel for `libghostty.Key`.
 - **`MousePosition` uses `float32`**: Not `uint32` or `int`.
 - **`Graphemes()` returns `[]uint32`**: Not a string — must convert codepoints to runes.
@@ -154,7 +155,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 ## Testing
 
 ```sh
-make test  # Runs go test ./... with PKG_CONFIG_PATH and LD_LIBRARY_PATH
+make test  # Builds libghostty-vt from submodule, then runs go test ./...
 ```
 
 Integration tests in `internal/server/server_test.go` cover: create/close, list, get_view, get_cursor, get_size, resize, invalid terminal ID, and golden file verification for nonexistent files.
