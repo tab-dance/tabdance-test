@@ -1,26 +1,35 @@
 ---
 name: tabdance-test
 description: >
-  Use when developing or debugging tabdance-test — the MCP server for headless terminal testing
-  using go-libghostty. Covers the MCP tool interface, headless terminal lifecycle, key/mouse
-  injection, terminal inspection, asciinema recording, VHS tape playback, golden file verification,
-  and Bubble Tea application testing. Triggers on: "tabdance-test", "headless terminal test",
-  "MCP terminal", "terminal MCP server", "ghostty MCP", "libghostty MCP", "send keys",
-  "retrieve view", "golden file", "asciinema recording", "VHS tape", "bubbletea test",
-  "tabdance test", "integration test terminal".
+  Use when developing or debugging tabdance-test — the CLI tool and MCP server for headless terminal
+  testing using go-libghostty. Covers the CLI command interface (Cobra + carapace), daemon architecture,
+  MCP tool interface, headless terminal lifecycle, key/mouse injection, terminal inspection, asciinema
+  recording, VHS tape playback, golden file verification, and Bubble Tea application testing.
+  Triggers on: "tabdance-test", "headless terminal test", "MCP terminal", "terminal MCP server",
+  "ghostty MCP", "libghostty MCP", "send keys", "retrieve view", "golden file",
+  "asciinema recording", "VHS tape", "bubbletea test", "tabdance test", "integration test terminal",
+  "tabdance-test exec", "tabdance-test run", "tabdance-test view", "tabdance-test keys",
+  "daemon socket", "terminal daemon".
 user-invocable: true
 ---
 
 # Tabdance-Test Development Reference
 
-Comprehensive reference for developing [tabdance-test](.) — the MCP server that provides headless terminal testing via go-libghostty. An agent can send keys, resize the terminal, retrieve the current view, create asciinema recordings, play VHS tapes, and verify output against golden files. Designed for testing Bubble Tea applications (e.g., tabdance) using an AI agent.
+Comprehensive reference for developing [tabdance-test](.) — the CLI tool and MCP server that provides headless terminal testing via go-libghostty. Supports two interfaces:
+
+1. **CLI** (Cobra + carapace completions) — for local development and CI testing
+2. **MCP server** (stdio) — for AI agent–driven testing
+
+Both interfaces provide the same capabilities: create terminals, send keys/mouse, inspect state, record sessions, play VHS tapes, and verify output against golden files.
 
 ## Architecture
 
+### CLI Mode (daemon-backed)
+
 ```
-AI Agent
-  → MCP protocol (stdio)
-    → tabdance-test MCP server
+CLI client (tabdance-test view, keys, etc.)
+  → Unix socket (JSON-RPC)
+    → Daemon process (auto-forked, holds TerminalManager)
       → go-libghostty (headless VT terminal)
         → libghostty-vt (C VT emulation library)
       → PTY (child process running TUI app)
@@ -30,12 +39,29 @@ AI Agent
       → Wait/poll regex matcher
 ```
 
+### CLI Mode (daemon-free)
+
+```
+tabdance-test run tape.tape --golden test.golden
+  → in-process: create terminal → play tape → verify golden → exit 0/1
+```
+
+### MCP Mode
+
+```
+AI Agent
+  → MCP protocol (stdio)
+    → tabdance-test mcp
+      → (same internal packages as daemon)
+```
+
 ## Sub-Resources
 
 Load the reference that matches your task. When in doubt, load multiple references.
 
 || Keywords | Reference |
 |----------|----------|
+| CLI commands, cobra, carapace, exec, view, keys, run, daemon, socket, attach, terminal ID completion | [references/cli-commands.md](references/cli-commands.md) |
 | MCP tools, tool interface, create_terminal, send_keys, send_text, resize, get_view, get_content, screenshot, reset, list_terminals, close_terminal, MCP protocol, tool schema | [references/mcp-tools.md](references/mcp-tools.md) |
 | terminal lifecycle, headless terminal, PTY, child process, go-libghostty, NewTerminal, VTWrite, Resize, effect callbacks, WritePty, bidirectional communication | [references/terminal-lifecycle.md](references/terminal-lifecycle.md) |
 | key injection, send_keys, KeyEncoder, KeyEvent, Key, Mods, KeyAction, Kitty keyboard, mouse injection, MouseEncoder, MouseEvent, focus events, paste events, scroll | [references/input-injection.md](references/input-injection.md) |
@@ -48,6 +74,7 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 
 ## Quick Guide
 
+- **What CLI commands does tabdance-test expose?** → [references/cli-commands.md](references/cli-commands.md)
 - **What MCP tools does tabdance-test expose?** → [references/mcp-tools.md](references/mcp-tools.md)
 - **How does the headless terminal lifecycle work?** → [references/terminal-lifecycle.md](references/terminal-lifecycle.md)
 - **How do I send keys/mouse to the terminal?** → [references/input-injection.md](references/input-injection.md)
@@ -65,3 +92,4 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 - For VHS tape DSL, parsing, and recording, use the **vhs** skill.
 - For Bubble Tea framework internals (Model/Update/View, commands, messages, renderer, testing, composition), use the **bubbletea** skill.
 - For tabdance application internals (select command, provider system, shell integration, UI model), use the **tabdance** skill.
+- For carapace shell completion integration (cobra setup, ActionMap, positional completion, dynamic actions), use the **carapace** skill.
