@@ -8,6 +8,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/tab-dance/tabdance-test/internal/input"
+	"github.com/tab-dance/tabdance-test/internal/inspect"
 	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
@@ -101,6 +102,31 @@ func (s *Server) registerTools() {
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 		mcp.WithString("text", mcp.Required(), mcp.Description("Text to paste")),
 	), s.handleSendPaste)
+
+	s.mcp.AddTool(mcp.NewTool("get_view",
+		mcp.WithDescription("Get the current terminal view as plain text, VT, or HTML"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
+		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
+	), s.handleGetView)
+
+	s.mcp.AddTool(mcp.NewTool("get_cell",
+		mcp.WithDescription("Get a specific cell's content and style"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithNumber("x", mcp.Required(), mcp.Description("Column (0-indexed)")),
+		mcp.WithNumber("y", mcp.Required(), mcp.Description("Row (0-indexed)")),
+	), s.handleGetCell)
+
+	s.mcp.AddTool(mcp.NewTool("get_cursor",
+		mcp.WithDescription("Get cursor position and style"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+	), s.handleGetCursor)
+
+	s.mcp.AddTool(mcp.NewTool("get_size",
+		mcp.WithDescription("Get terminal dimensions"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+	), s.handleGetSize)
 }
 
 func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -351,4 +377,97 @@ func (s *Server) handleSendPaste(_ context.Context, req mcp.CallToolRequest) (*m
 	}
 
 	return mcp.NewToolResultText("paste sent"), nil
+}
+
+func (s *Server) handleGetView(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	format := req.GetString("format", "plain")
+	trim := req.GetBool("trim", true)
+	unwrap := req.GetBool("unwrap", true)
+
+	mt.Lock()
+	defer mt.Unlock()
+
+	result, err := inspect.GetView(mt.Terminal, format, trim, unwrap)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(result.ToJSON()), nil
+}
+
+func (s *Server) handleGetCell(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	x, err := req.RequireInt("x")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	y, err := req.RequireInt("y")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt.Lock()
+	defer mt.Unlock()
+
+	result, err := inspect.GetCell(mt.Terminal, uint16(x), uint32(y))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(result.ToJSON()), nil
+}
+
+func (s *Server) handleGetCursor(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt.Lock()
+	defer mt.Unlock()
+
+	result := inspect.GetCursor(mt.Terminal)
+	return mcp.NewToolResultText(result.ToJSON()), nil
+}
+
+func (s *Server) handleGetSize(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt.Lock()
+	defer mt.Unlock()
+
+	result := inspect.GetSize(mt.Terminal)
+	return mcp.NewToolResultText(result.ToJSON()), nil
 }
