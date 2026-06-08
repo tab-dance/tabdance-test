@@ -45,7 +45,7 @@ func (s *Server) Run() error {
 func (s *Server) registerTools() {
 	s.mcp.AddTool(mcp.NewTool("create_terminal",
 		mcp.WithDescription("Create a new headless terminal, optionally running a child process"),
-		mcp.WithNumber("cols", mcp.Description("Terminal width in columns (default: 80)")),
+		mcp.WithNumber("cols", mcp.Description("Terminal width in columns (default: 108)")),
 		mcp.WithNumber("rows", mcp.Description("Terminal height in rows (default: 24)")),
 		mcp.WithNumber("scrollback", mcp.Description("Max scrollback lines (default: 10000)")),
 		mcp.WithString("command", mcp.Description("Command to run in the terminal")),
@@ -189,7 +189,7 @@ func (s *Server) registerTools() {
 }
 
 func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	cols := uint16(req.GetInt("cols", 80))
+	cols := uint16(req.GetInt("cols", 108))
 	rows := uint16(req.GetInt("rows", 24))
 	scrollback := uint(req.GetInt("scrollback", 10000))
 	command := req.GetString("command", "")

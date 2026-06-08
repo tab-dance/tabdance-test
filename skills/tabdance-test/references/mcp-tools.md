@@ -17,12 +17,12 @@ Create a new headless terminal, optionally running a child process.
 **Input:**
 ```json
 {
-  "cols": 80,
+  "cols": 108,
   "rows": 24,
   "scrollback": 10000,
   "command": "optional command to run",
   "env": {"KEY": "VALUE"},
-  "working_directory": "/optional/path"
+  "working_directory": "/tmp/tabdance-test"
 }
 ```
 
@@ -30,7 +30,7 @@ Create a new headless terminal, optionally running a child process.
 ```json
 {
   "terminal_id": "term_1",
-  "cols": 80,
+  "cols": 108,
   "rows": 24
 }
 ```
@@ -43,7 +43,7 @@ List all active terminals.
 ```json
 {
   "terminals": [
-    {"id": "term_1", "cols": 80, "rows": 24, "command": "bash"}
+    {"id": "term_1", "cols": 108, "rows": 24, "command": "bash"}
   ]
 }
 ```
@@ -244,9 +244,9 @@ Get terminal dimensions.
 **Output:**
 ```json
 {
-  "cols": 80,
+  "cols": 108,
   "rows": 24,
-  "width_px": 640,
+  "width_px": 864,
   "height_px": 384
 }
 ```
@@ -397,3 +397,12 @@ Wait for a pattern to appear on screen.
   "elapsed_ms": 15000
 }
 ```
+
+## Common Pitfalls
+
+- **Use a temp directory for test artifacts**: Create `/tmp/tabdance-test/` for recordings, golden files, and VHS tapes. Only commit golden files to the project's `testdata/` when they're stable and meant for CI.
+- **`send_text` sends raw bytes, not VT-encoded keys**: `send_text` writes directly to PTY stdin. Sending `"\x1b[B"` sends literal characters, not an arrow key. Use `send_keys` with `{"key": "ArrowDown"}` for special keys.
+- **`send_keys` vs `send_text`**: Use `send_keys` for special keys (arrows, Enter, Tab, Escape, F-keys, modifier combos). Use `send_text` for printable text and commands (faster, simpler). For multi-step key sequences, use a small VHS tape via `play_tape`.
+- **`reset_terminal` clears VT state, not the child process**: After reset, the shell's readline buffer and prompt are corrupted. To start fresh, `close_terminal` and `create_terminal` a new one instead.
+- **`working_directory` sets the child process's cwd**: Only affects the process started by `command`. The terminal itself has no working directory concept.
+- **VHS `Screenshot` requires `.png` extension**: The upstream VHS parser rejects non-`.png` paths. In tabdance-test, screenshots become markers — use `add_marker` + `update_golden` instead.
