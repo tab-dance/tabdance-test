@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	libghostty "go.mitchellh.com/libghostty"
 	"github.com/charmbracelet/vhs/lexer"
 	"github.com/charmbracelet/vhs/parser"
 	"github.com/charmbracelet/vhs/token"
+	libghostty "go.mitchellh.com/libghostty"
 )
 
 type TapeExecutor struct {
@@ -181,7 +181,7 @@ func (e *TapeExecutor) executeKey(cmdType, args string, key libghostty.Key) erro
 }
 
 func (e *TapeExecutor) sendKeys(key libghostty.Key, mods libghostty.Mods, count int) error {
-	for i := 0; i < count; i++ {
+	for range count {
 		e.terminal.Lock()
 		event, err := libghostty.NewKeyEvent()
 		if err != nil {
