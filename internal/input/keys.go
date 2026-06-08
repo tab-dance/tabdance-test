@@ -72,7 +72,9 @@ func SendKeys(enc *libghostty.KeyEncoder, ptmxWriter io.Writer, term *libghostty
 				return fmt.Errorf("encode release: %w", err)
 			}
 			if seq != nil {
-				ptmxWriter.Write(seq)
+				if _, err := ptmxWriter.Write(seq); err != nil {
+					return fmt.Errorf("write release seq: %w", err)
+				}
 			}
 		}
 	}

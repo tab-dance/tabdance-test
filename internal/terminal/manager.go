@@ -57,12 +57,14 @@ func (m *TerminalManager) List() []TerminalInfo {
 
 	infos := make([]TerminalInfo, 0, len(m.terminals))
 	for _, mt := range m.terminals {
+		mt.mu.Lock()
 		infos = append(infos, TerminalInfo{
 			ID:      mt.ID,
 			Cols:    mt.Cols,
 			Rows:    mt.Rows,
 			Command: mt.Command,
 		})
+		mt.mu.Unlock()
 	}
 	return infos
 }

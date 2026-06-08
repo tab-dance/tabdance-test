@@ -166,7 +166,9 @@ func (e *TapeExecutor) executeType(cmd parser.Command) error {
 			return err
 		}
 		if seq != nil {
-			e.terminal.WritePty(seq)
+			if _, err := e.terminal.WritePty(seq); err != nil {
+				return fmt.Errorf("write type seq: %w", err)
+			}
 		}
 		time.Sleep(typingSpeed)
 	}
@@ -198,7 +200,11 @@ func (e *TapeExecutor) sendKeys(key libghostty.Key, mods libghostty.Mods, count 
 		}
 
 		if seq != nil {
-			e.terminal.WritePty(seq)
+			if _, err := e.terminal.WritePty(seq); err != nil {
+				event.Close()
+				e.terminal.Unlock()
+				return fmt.Errorf("write key seq: %w", err)
+			}
 		}
 
 		kkf, _ := e.terminal.GetTerminal().KittyKeyboardFlags()
@@ -206,7 +212,11 @@ func (e *TapeExecutor) sendKeys(key libghostty.Key, mods libghostty.Mods, count 
 			event.SetAction(libghostty.KeyActionRelease)
 			seq, _ = e.terminal.GetKeyEncoder().Encode(event)
 			if seq != nil {
-				e.terminal.WritePty(seq)
+				if _, err := e.terminal.WritePty(seq); err != nil {
+					event.Close()
+					e.terminal.Unlock()
+					return fmt.Errorf("write release seq: %w", err)
+				}
 			}
 		}
 
@@ -291,10 +301,14 @@ func (e *TapeExecutor) executeSet(cmd parser.Command) error {
 	switch setting {
 	case "Width":
 		cols := uint16(parseCount(value, 80))
+		e.terminal.Lock()
 		rows, _ := e.terminal.GetTerminal().Rows()
+		e.terminal.Unlock()
 		return e.terminal.Resize(cols, rows)
 	case "Height":
+		e.terminal.Lock()
 		cols, _ := e.terminal.GetTerminal().Cols()
+		e.terminal.Unlock()
 		rows := uint16(parseCount(value, 24))
 		return e.terminal.Resize(cols, rows)
 	case "TypingSpeed":

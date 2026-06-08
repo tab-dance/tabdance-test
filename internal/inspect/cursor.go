@@ -21,9 +21,20 @@ func GetCursor(term *libghostty.Terminal) *CursorResult {
 	pendingWrap, _ := term.CursorPendingWrap()
 
 	styleStr := "bar"
-	if cs, err := term.CursorStyle(); err == nil && cs != nil {
-		if cs.Bold() {
-			styleStr = "block"
+	rs, err := libghostty.NewRenderState()
+	if err == nil {
+		defer rs.Close()
+		if err := rs.Update(term); err == nil {
+			if cs, err := rs.CursorVisualStyle(); err == nil {
+				switch cs {
+				case libghostty.CursorVisualStyleBlock:
+					styleStr = "block"
+				case libghostty.CursorVisualStyleUnderline:
+					styleStr = "underline"
+				case libghostty.CursorVisualStyleBlockHollow:
+					styleStr = "block_hollow"
+				}
+			}
 		}
 	}
 

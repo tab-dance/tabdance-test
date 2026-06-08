@@ -199,7 +199,9 @@ func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest
 	args := req.GetArguments()
 	if v, ok := args["env"]; ok {
 		if raw, err := json.Marshal(v); err == nil {
-			json.Unmarshal(raw, &env)
+			if err := json.Unmarshal(raw, &env); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("parse env: %v", err)), nil
+			}
 		}
 	}
 
@@ -215,7 +217,7 @@ func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	result := map[string]interface{}{
+	result := map[string]any{
 		"terminal_id": mt.ID,
 		"cols":        mt.Cols,
 		"rows":        mt.Rows,
@@ -226,7 +228,7 @@ func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest
 
 func (s *Server) handleListTerminals(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	infos := s.terminals.List()
-	data, _ := json.Marshal(map[string]interface{}{"terminals": infos})
+	data, _ := json.Marshal(map[string]any{"terminals": infos})
 	return mcp.NewToolResultText(string(data)), nil
 }
 
@@ -315,6 +317,10 @@ func (s *Server) handleSendKeys(_ context.Context, req mcp.CallToolRequest) (*mc
 
 	mt.Lock()
 	defer mt.Unlock()
+
+	if len(keyInputs) == 0 {
+		return mcp.NewToolResultError("no valid keys provided"), nil
+	}
 
 	if err := input.SendKeys(mt.KeyEncoder, mt, mt.Terminal, keyInputs); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil

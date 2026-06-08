@@ -136,6 +136,10 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **`go mod tidy` warnings**: The `go.mod` has indirect deps that gopls complains about — these come from mcp-go's transitive dependencies and are normal.
 - **PTY bridge goroutines**: Exit when `done` channel is closed (in `Close()`). The `WritePty` callback runs synchronously during `VTWrite`.
 - **No `MouseActionScrollUp/ScrollDown`**: go-libghostty only has Press/Release/Motion. Scroll is implemented via button 4/5 press+release.
+- **`CursorStyle()` returns SGR text attributes, NOT cursor shape**: `Terminal.CursorStyle()` returns `*Style` (bold/italic/fg/bg), not the cursor shape. Use `RenderState.CursorVisualStyle()` instead: `NewRenderState()` → `rs.Update(term)` → `rs.CursorVisualStyle()` → compare against `CursorVisualStyleBar/Block/Underline/BlockHollow`. Always `defer rs.Close()`.
+- **`ManagedTerminal.Close()` is idempotent**: Wrapped in `sync.Once` — safe to call multiple times.
+- **`WaitFor` takes `sync.Locker`**: The first arg is the mutex, not the terminal. This allows per-iteration lock/unlock instead of holding the lock for the entire wait duration.
+- **`List()` acquires per-terminal mutex**: Reads `Cols`/`Rows` under `mt.mu` to avoid data race with concurrent resize.
 
 ## Dependencies
 
