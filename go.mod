@@ -2,7 +2,11 @@ module github.com/tab-dance/tabdance-test
 
 go 1.26.3
 
-require github.com/mark3labs/mcp-go v0.54.1
+require (
+	github.com/creack/pty v1.1.24
+	github.com/mark3labs/mcp-go v0.54.1
+	go.mitchellh.com/libghostty v0.0.0-20260528200934-790a3ff6e9f6
+)
 
 require (
 	github.com/dlclark/regexp2 v1.11.5 // indirect
