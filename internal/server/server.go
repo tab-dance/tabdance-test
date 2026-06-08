@@ -13,6 +13,7 @@ import (
 	"github.com/tab-dance/tabdance-test/internal/inspect"
 	"github.com/tab-dance/tabdance-test/internal/tape"
 	"github.com/tab-dance/tabdance-test/internal/terminal"
+	"github.com/tab-dance/tabdance-test/internal/wait"
 )
 
 type Server struct {
@@ -173,6 +174,17 @@ func (s *Server) registerTools() {
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleUpdateGolden)
+
+	s.mcp.AddTool(mcp.NewTool("wait_for",
+		mcp.WithDescription("Poll terminal output until a regex pattern matches or timeout"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithString("pattern", mcp.Required(), mcp.Description("Regex pattern to match")),
+		mcp.WithString("scope", mcp.Description("Match scope: screen (default) or line")),
+		mcp.WithNumber("timeout", mcp.Description("Timeout in seconds (default: 10)")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
+		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
+	), s.handleWaitFor)
 }
 
 func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -669,4 +681,44 @@ func (s *Server) handleUpdateGolden(_ context.Context, req mcp.CallToolRequest) 
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("golden file %q updated", goldenPath)), nil
+}
+
+func (s *Server) handleWaitFor(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	pattern, err := req.RequireString("pattern")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	scope := req.GetString("scope", "screen")
+	timeout := time.Duration(req.GetInt("timeout", 10)) * time.Second
+	format := req.GetString("format", "plain")
+	trim := req.GetBool("trim", true)
+	unwrap := req.GetBool("unwrap", true)
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt.Lock()
+	defer mt.Unlock()
+
+	result, err := wait.WaitFor(mt.Terminal, wait.WaitForOptions{
+		Pattern:      pattern,
+		Scope:        scope,
+		Timeout:      timeout,
+		Format:       format,
+		Trim:         trim,
+		Unwrap:       unwrap,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(result.ToJSON()), nil
 }
