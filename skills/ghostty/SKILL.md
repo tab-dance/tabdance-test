@@ -64,7 +64,7 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 - **How does shell integration work?** → [references/shell-integration.md](references/shell-integration.md)
 - **How do I control a running ghostty instance via IPC?** → [references/ipc-cli.md](references/ipc-cli.md)
 - **How do I embed ghostty in my application?** → [references/embedding.md](references/embedding.md)
-- **How do I create asciinema recordings or use VHS tapes for testing?** → [references/recording-testing.md](references/recording-testing.md)
+- **How do I test with go-libghostty (golden files, asciicast generation)?** → [references/recording-testing.md](references/recording-testing.md)
 - **How does cgo linking work and what are the concurrency rules?** → [references/cgo-build.md](references/cgo-build.md)
 
 ## Cross-Project References
@@ -72,4 +72,6 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 - For Bubble Tea framework internals (Model/Update/View, commands, messages, renderer, testing, composition), use the **bubbletea** skill.
 - For carapace library internals (Action API, traverse engine, shell formatters, style system, export format, UID system), use the **carapace-dev** skill.
 - For carapace user-facing topics (integrating into CLIs, writing specs, macros, setup, choices), use the **carapace** skill.
+- For asciinema/asciicast v2 format and CLI, use the **asciinema** skill.
+- For VHS tape DSL, parsing, and recording, use the **vhs** skill.
 - For in-depth shell-specific knowledge (bash, zsh, fish, elvish, nushell, powershell, xonsh, oil, tcsh), use the corresponding shell skill.

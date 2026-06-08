@@ -1,140 +1,15 @@
-# Recording & Testing — Asciinema, VHS, and Golden Files
+# Recording & Testing — go-libghostty Testing Patterns
 
-In-depth reference for terminal recording formats (asciinema v2, VHS tapes) and integration testing patterns using go-libghostty.
+In-depth reference for integration testing with go-libghostty: headless terminal testing, golden file comparison, and asciicast generation. For asciinema format details, use the **asciinema** skill. For VHS tape format details, use the **vhs** skill.
 
-## Asciicast v2 Format
+## Headless Terminal Test Pattern
 
-The asciinema recording format (`.cast` files) is based on **newline-delimited JSON** (JSON Lines).
+go-libghostty provides a headless VT terminal for fast, in-process integration testing of TUI applications — no display server, no browser, no PTY required.
 
-### Header (First Line)
-
-```json
-{
-  "version": 2,
-  "width": 80,
-  "height": 24,
-  "timestamp": 1504467315,
-  "duration": 123.45,
-  "command": "/bin/bash",
-  "title": "Demo",
-  "idle_time_limit": 2,
-  "env": {"SHELL": "/bin/bash", "TERM": "xterm-256color"},
-  "theme": {
-    "fg": "#d0d0d0",
-    "bg": "#212121",
-    "palette": "#151515:#ac4142:..."
-  }
-}
-```
-
-**Required**: `version` (must be 2), `width`, `height`.
-
-### Event Stream (Subsequent Lines)
-
-Each line is a 3-element JSON array: `[time, code, data]`
-
-| Code | Type | Description |
-|------|------|-------------|
-| `"o"` | Output | Data written to terminal (string) |
-| `"i"` | Input | Keystrokes from terminal (string) |
-| `"m"` | Marker | Breakpoint/label (string, can be empty) |
-| `"r"` | Resize | New size as `"{COLS}x{ROWS}"` (string) |
-
-**Timing**: `time` is seconds since start of recording (float).
-
-### Example
-
-```
-{"version": 2, "width": 80, "height": 24}
-[0.248848, "o", "\u001b[1;31mHello \u001b[32mWorld!\u001b[0m\n"]
-[1.001376, "o", "That was ok\rThis is better."]
-[1.500000, "m", ""]
-[2.143733, "o", "Now... "]
-[4.050000, "r", "80x24"]
-[6.541828, "o", "Bye!"]
-```
-
-### File Properties
-
-| Property | Value |
-|----------|-------|
-| Extension | `.cast` |
-| MIME type | `application/x-asciicast` |
-
-### Design Benefits
-
-- Incremental, real-time writing to disk
-- Minimal memory usage (disk-space limited)
-- Crash safety (recording not lost on interruption)
-- Real-time streaming friendly
-
-## VHS (charmbracelet/vhs) — Tape Format
-
-VHS is a CLI tool that executes `.tape` files to produce terminal GIFs, MP4s, WebMs, or text output for testing.
-
-### Architecture
-
-Three-process pipeline:
-1. **ttyd** — Terminal multiplexer hosting a real PTY via xterm.js
-2. **go-rod (Chromium)** — Headless Chrome connected to ttyd
-3. **ffmpeg** — Composites frames into final output
-
-### Tape DSL Commands
-
-| Command | Syntax | Description |
-|---------|--------|-------------|
-| `Output` | `Output <path>` | Output file (`.gif`, `.mp4`, `.webm`, `.txt`, `.ascii`) |
-| `Require` | `Require <program>` | Fail if program not in `$PATH` |
-| `Set` | `Set <Setting> <Value>` | Configure terminal/recording |
-| `Type` | `Type[@time] "string"` | Type characters |
-| `Enter` | `Enter[count]` | Press Enter |
-| `Backspace` | `Backspace[count]` | Press Backspace |
-| `Tab` | `Tab[@time] [count]` | Press Tab |
-| `Ctrl` | `Ctrl[+Alt][+Shift]+<char>` | Control sequence |
-| `Alt` | `Alt+<char>` | Alt modifier |
-| `Sleep` | `Sleep <time>` | Wait (captures frames) |
-| `Wait` | `Wait[+Screen\|+Line][@timeout] /regex/` | Wait for regex match |
-| `Hide` | `Hide` | Stop capturing frames |
-| `Show` | `Show` | Resume capturing |
-| `Screenshot` | `Screenshot <path.png>` | Capture frame as PNG |
-| `Copy` | `Copy "text"` | Copy to clipboard |
-| `Paste` | `Paste` | Paste from clipboard |
-| `Env` | `Env <KEY> "value"` | Set environment variable |
-| `Source` | `Source <path.tape>` | Include another tape |
-
-### Set Settings
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `Shell` | `bash` | Shell to use |
-| `FontSize` | `22` | Font size |
-| `FontFamily` | JetBrains Mono | Font family |
-| `Width` | `1200` | Pixel width |
-| `Height` | `600` | Pixel height |
-| `TypingSpeed` | `50ms` | Per-character delay |
-| `Theme` | Default dark | Theme name or JSON |
-| `Framerate` | `50` | Capture framerate |
-| `WaitTimeout` | `15s` | Wait command timeout |
-| `WaitPattern` | `/>$/` | Default wait pattern |
-
-### VHS for Testing
-
-When output is `.txt` or `.ascii`, VHS saves the terminal buffer content after each command. These golden files can be stored in git and diffed for integration testing.
-
-**VHS is NOT a Go library** — it's a CLI application. The lexer/parser packages are importable:
-- `github.com/charmbracelet/vhs/lexer`
-- `github.com/charmbracelet/vhs/parser`
-- `github.com/charmbracelet/vhs/token`
-
-## Integration Testing with go-libghostty
-
-go-libghostty provides a superior alternative to VHS for Go-based integration testing of TUI applications.
-
-### Headless Terminal Test Pattern
+### Basic Test
 
 ```go
 func TestMyTUI(t *testing.T) {
-    // 1. Create headless terminal
     term, err := libghostty.NewTerminal(
         libghostty.WithSize(80, 24),
         libghostty.WithWritePty(func(_ *libghostty.Terminal, data []byte) {
@@ -144,10 +19,8 @@ func TestMyTUI(t *testing.T) {
     if err != nil { t.Fatal(err) }
     defer term.Close()
 
-    // 2. Feed application output
     term.VTWrite(appOutput)
 
-    // 3. Inspect terminal state
     f, _ := libghostty.NewFormatter(term,
         libghostty.WithFormatterFormat(libghostty.FormatterFormatPlain),
         libghostty.WithFormatterTrim(true),
@@ -163,38 +36,123 @@ func TestMyTUI(t *testing.T) {
 }
 ```
 
-### Simulating Input
+### Simulating Keyboard Input
 
 ```go
-// Create key encoder synced to terminal state
 enc, _ := libghostty.NewKeyEncoder()
 defer enc.Close()
 enc.SetOptFromTerminal(term)
 
-// Simulate key press
 event := libghostty.NewKeyEvent()
 defer event.Close()
 event.SetAction(libghostty.KeyActionPress)
 event.SetKey(libghostty.KeyEnter)
 seq, _ := enc.Encode(event)
-
-// In a real test, seq would be written to the application's stdin
 ```
 
-### Asciinema Recording Generation
+### Simulating Mouse Input
+
+```go
+enc, _ := libghostty.NewMouseEncoder()
+defer enc.Close()
+enc.SetOptFromTerminal(term)
+enc.SetOptSize(libghostty.MouseEncoderSize{
+    ScreenWidth: 640, ScreenHeight: 384,
+    CellWidth: 8, CellHeight: 16,
+})
+
+event := libghostty.NewMouseEvent()
+defer event.Close()
+event.SetAction(libghostty.MouseActionPress)
+event.SetButton(libghostty.MouseButtonLeft)
+event.SetPosition(libghostty.MousePosition{X: 10, Y: 5})
+seq, _ := enc.Encode(event)
+```
+
+### Full Input Pipeline
+
+```go
+// 1. Create terminal with PTY response capture
+var ptyOut bytes.Buffer
+term, _ := libghostty.NewTerminal(
+    libghostty.WithSize(80, 24),
+    libghostty.WithWritePty(func(_ *libghostty.Terminal, data []byte) {
+        ptyOut.Write(data)
+    }),
+)
+defer term.Close()
+
+// 2. Create key encoder synced to terminal state
+enc, _ := libghostty.NewKeyEncoder()
+defer enc.Close()
+enc.SetOptFromTerminal(term)
+
+// 3. Feed application output
+term.VTWrite(appOutput)
+
+// 4. Encode and send keyboard input
+event := libghostty.NewKeyEvent()
+defer event.Close()
+event.SetAction(libghostty.KeyActionPress)
+event.SetKey(libghostty.KeyEnter)
+seq, _ := enc.Encode(event)
+```
+
+## Golden File Testing
+
+### Plain Text Comparison
+
+```go
+f, _ := libghostty.NewFormatter(term,
+    libghostty.WithFormatterFormat(libghostty.FormatterFormatPlain),
+    libghostty.WithFormatterTrim(true),
+    libghostty.WithFormatterUnwrap(true),
+)
+defer f.Close()
+
+got, _ := f.FormatString()
+want, _ := os.ReadFile("testdata/golden.txt")
+if got != string(want) {
+    t.Errorf("golden mismatch")
+}
+```
+
+### VT Snapshot Comparison
+
+```go
+f, _ := libghostty.NewFormatter(term,
+    libghostty.WithFormatterFormat(libghostty.FormatterFormatVT),
+    libghostty.WithFormatterExtraCursor(true),
+    libghostty.WithFormatterExtraStyle(true),
+    libghostty.WithFormatterExtraPalette(true),
+    libghostty.WithFormatterExtraModes(true),
+)
+defer f.Close()
+
+vtSnapshot, _ := f.Format()
+// vtSnapshot can be replayed into another terminal or compared to golden
+```
+
+### HTML Snapshot
+
+```go
+f, _ := libghostty.NewFormatter(term,
+    libghostty.WithFormatterFormat(libghostty.FormatterFormatHTML),
+)
+defer f.Close()
+
+html, _ := f.FormatString()
+os.WriteFile("snapshot.html", []byte(html), 0644)
+```
+
+## Asciicast Generation
+
+For asciicast v2 format details, see the **asciinema** skill → `references/asciicast-v2-format.md`.
+
+### Single-Frame Recording
 
 ```go
 func writeAsciicast(term *libghostty.Terminal, outputPath string) error {
-    header := map[string]interface{}{
-        "version": 2,
-        "width":   int(term.Cols()),
-        "height":  int(term.Rows()),
-        "env": map[string]string{
-            "TERM": "xterm-ghostty",
-        },
-    }
-
-    // Format terminal content as VT
     f, _ := libghostty.NewFormatter(term,
         libghostty.WithFormatterFormat(libghostty.FormatterFormatVT),
     )
@@ -202,9 +160,16 @@ func writeAsciicast(term *libghostty.Terminal, outputPath string) error {
 
     content, _ := f.Format()
 
-    // Write asciicast file
-    headerJSON, _ := json.Marshal(header)
+    header := map[string]interface{}{
+        "version": 2,
+        "width":   int(term.Cols()),
+        "height":  int(term.Rows()),
+        "env":     map[string]string{"TERM": "xterm-ghostty"},
+    }
+
     event := []interface{}{0.0, "o", string(content)}
+
+    headerJSON, _ := json.Marshal(header)
     eventJSON, _ := json.Marshal(event)
 
     return os.WriteFile(outputPath, append(
@@ -214,78 +179,94 @@ func writeAsciicast(term *libghostty.Terminal, outputPath string) error {
 }
 ```
 
-### VHS Tape Parsing
+### Incremental Recording with Timing
+
+```go
+type AsciicastRecorder struct {
+    file  *os.File
+    enc   *json.Encoder
+    start time.Time
+}
+
+func NewAsciicastRecorder(path string, width, height int) (*AsciicastRecorder, error) {
+    f, err := os.Create(path)
+    if err != nil { return nil, err }
+
+    r := &AsciicastRecorder{file: f, enc: json.NewEncoder(f), start: time.Now()}
+
+    header := map[string]interface{}{
+        "version": 2,
+        "width":   width,
+        "height":  height,
+    }
+    if err := r.enc.Encode(header); err != nil {
+        f.Close()
+        return nil, err
+    }
+    return r, nil
+}
+
+func (r *AsciicastRecorder) WriteOutput(data []byte) error {
+    elapsed := time.Since(r.start).Seconds()
+    return r.enc.Encode([]interface{}{elapsed, "o", string(data)})
+}
+
+func (r *AsciicastRecorder) WriteResize(cols, rows int) error {
+    elapsed := time.Since(r.start).Seconds()
+    return r.enc.Encode([]interface{}{elapsed, "r", fmt.Sprintf("%dx%d", cols, rows)})
+}
+
+func (r *AsciicastRecorder) Close() error { return r.file.Close() }
+```
+
+## VHS Tape Integration
+
+For VHS tape DSL and parsing details, see the **vhs** skill.
+
+### Converting VHS Tape Commands to go-libghostty
+
+| VHS Command | go-libghostty Equivalent |
+|-------------|------------------------|
+| `Type "text"` | `KeyEncoder.Encode()` for each character |
+| `Enter` | `KeyEncoder.Encode(KeyEvent{Key: KeyEnter})` |
+| `Ctrl+C` | `KeyEncoder.Encode(KeyEvent{Key: KeyC, Mods: ModCtrl})` |
+| `Sleep 1` | `time.Sleep(1 * time.Second)` |
+| `Set Width/Height` | `term.Resize(cols, rows, cellW, cellH)` |
+| `Wait /pattern/` | Poll `Formatter.FormatString()` until regex matches |
+| `Screenshot` | `RenderState.Update(term)` + custom renderer |
+
+### Parsing VHS Tapes for Headless Execution
 
 ```go
 import (
     "github.com/charmbracelet/vhs/lexer"
     "github.com/charmbracelet/vhs/parser"
+    "github.com/charmbracelet/vhs/token"
 )
 
-// Parse a .tape file
 l := lexer.New(tapeContent)
 p := parser.New()
-commands, err := p.Parse(l)
-if err != nil { return err }
+commands, _ := p.Parse(l)
 
-// commands is a []Command — each has Type, Options, Args
 for _, cmd := range commands {
     switch cmd.Type {
     case token.TYPE:
-        // Simulate typing
+        // Encode each character via KeyEncoder
     case token.ENTER:
-        // Simulate Enter key
+        // Encode Enter key
     case token.SLEEP:
-        // Wait
+        // time.Sleep
+    case token.SET:
+        // Apply settings (resize, etc.)
     }
 }
-```
-
-### Golden File Testing Pattern
-
-```go
-func TestGoldenFile(t *testing.T) {
-    term, _ := libghostty.NewTerminal(libghostty.WithSize(80, 24))
-    defer term.Close()
-
-    // Feed known input
-    term.VTWrite([]byte("\033[1;1HHello, World!\033[0K"))
-
-    // Extract plain text
-    f, _ := libghostty.NewFormatter(term,
-        libghostty.WithFormatterFormat(libghostty.FormatterFormatPlain),
-        libghostty.WithFormatterTrim(true),
-    )
-    defer f.Close()
-
-    got, _ := f.FormatString()
-
-    // Update golden: os.WriteFile("testdata/golden.txt", []byte(got), 0644)
-    want, _ := os.ReadFile("testdata/golden.txt")
-    if got != string(want) {
-        t.Errorf("golden mismatch")
-    }
-}
-```
-
-### Screenshot/Visual Testing
-
-For pixel-level visual testing, use the `RenderState` to build a custom renderer that produces images:
-
-```go
-rs, _ := libghostty.NewRenderState()
-defer rs.Close()
-rs.Update(term)
-
-// Iterate rows/cells, build image
-// Compare against golden PNG
 ```
 
 ## Comparison: go-libghostty vs VHS
 
 | Feature | go-libghostty | VHS |
 |---------|---------------|-----|
-| Language | Go library | CLI tool (Go internally) |
+| Language | Go library | CLI tool |
 | Terminal | Headless VT (no PTY) | Real PTY via ttyd |
 | Input | Programmatic (KeyEncoder) | DSL (Type, Ctrl, etc.) |
 | Output | Formatter (plain/VT/HTML) | ttyd canvas → ffmpeg |
