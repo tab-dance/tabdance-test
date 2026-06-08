@@ -241,3 +241,17 @@ func (m *ManagedTerminal) StopRecording() error {
 	m.Recorder = nil
 	return err
 }
+
+func (m *ManagedTerminal) WritePty(data []byte) (int, error) {
+	if m.Ptmx == nil {
+		return 0, fmt.Errorf("no PTY available")
+	}
+	return m.Ptmx.Write(data)
+}
+
+func (m *ManagedTerminal) Write(data []byte) (int, error) {
+	return m.WritePty(data)
+}
+
+func (m *ManagedTerminal) Lock()   { m.mu.Lock() }
+func (m *ManagedTerminal) Unlock() { m.mu.Unlock() }
