@@ -248,8 +248,22 @@ func (e *TapeExecutor) executeSleep(cmd parser.Command) error {
 }
 
 func (e *TapeExecutor) executeWait(cmd parser.Command) error {
-	pattern := cmd.Args
-	scope := cmd.Options
+	// The upstream VHS parser puts scope and pattern in cmd.Args as
+	// "Line <pattern>" or "Screen <pattern>", and the timeout in cmd.Options.
+	parts := strings.SplitN(cmd.Args, " ", 2)
+	scope := parts[0]
+	pattern := ""
+	if len(parts) > 1 {
+		pattern = parts[1]
+	}
+
+	if cmd.Options != "" {
+		if d, err := time.ParseDuration(cmd.Options); err == nil {
+			if d > 0 {
+				e.timeout = d
+			}
+		}
+	}
 	timeout := e.timeout
 
 	re, err := regexp.Compile(pattern)
@@ -273,9 +287,10 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 		f.Close()
 
 		matched := false
-		if scope == "+Screen" || scope == "" {
+		switch scope {
+		case "Screen":
 			matched = re.MatchString(content)
-		} else if scope == "+Line" {
+		case "Line":
 			cursorY, _ := e.terminal.GetTerminal().CursorY()
 			lines := strings.Split(content, "\n")
 			if int(cursorY) < len(lines) {

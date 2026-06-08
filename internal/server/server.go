@@ -305,7 +305,12 @@ func (s *Server) handleSendKeys(_ context.Context, req mcp.CallToolRequest) (*mc
 	}
 
 	var keyInputs []input.KeyInput
-	if err := req.BindArguments(&struct{ Keys []input.KeyInput `json:"keys"` }{}); err != nil {
+	target := struct {
+		Keys []input.KeyInput `json:"keys"`
+	}{}
+	if err := req.BindArguments(&target); err == nil {
+		keyInputs = target.Keys
+	} else {
 		args := req.GetArguments()
 		if raw, ok := args["keys"]; ok {
 			data, _ := json.Marshal(raw)
