@@ -21,7 +21,7 @@ func runRunInProcess(tapePath string, opts runOptions) error {
 		Cols:             uint16(opts.cols),
 		Rows:             uint16(opts.rows),
 		Scrollback:       10000,
-		Command:          "", // tape provides the command via Set Shell
+		Command:          "sh",
 		Env:              env,
 		WorkingDirectory: opts.workingDir,
 	})

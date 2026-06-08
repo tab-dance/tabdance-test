@@ -14,6 +14,14 @@ import (
 	"github.com/tab-dance/tabdance-test/internal/recording"
 )
 
+type outputSubscriber struct {
+	ch chan []byte
+}
+
+func (s *outputSubscriber) Channel() <-chan []byte {
+	return s.ch
+}
+
 type ManagedTerminal struct {
 	ID           string
 	Terminal     *libghostty.Terminal
@@ -27,10 +35,11 @@ type ManagedTerminal struct {
 	Cols         uint16
 	Rows         uint16
 
-	mu     sync.Mutex
-	done   chan struct{}
-	ptyOut *bytes.Buffer
-	close  sync.Once
+	mu          sync.Mutex
+	done        chan struct{}
+	ptyOut      *bytes.Buffer
+	close       sync.Once
+	subscribers []*outputSubscriber
 }
 
 type CreateConfig struct {
@@ -144,6 +153,12 @@ func (m *ManagedTerminal) ptyReadLoop() {
 		m.Terminal.VTWrite(data)
 		if m.Recorder != nil {
 			m.Recorder.WriteOutput(data)
+		}
+		for _, sub := range m.subscribers {
+			select {
+			case sub.ch <- data:
+			default:
+			}
 		}
 		m.mu.Unlock()
 	}
@@ -277,4 +292,24 @@ func (m *ManagedTerminal) GetTerminal() *libghostty.Terminal    { return m.Termi
 func (m *ManagedTerminal) GetKeyEncoder() *libghostty.KeyEncoder { return m.KeyEncoder }
 func (m *ManagedTerminal) GetMouseEncoder() *libghostty.MouseEncoder {
 	return m.MouseEncoder
+}
+
+func (m *ManagedTerminal) Subscribe() *outputSubscriber {
+	sub := &outputSubscriber{ch: make(chan []byte, 64)}
+	m.mu.Lock()
+	m.subscribers = append(m.subscribers, sub)
+	m.mu.Unlock()
+	return sub
+}
+
+func (m *ManagedTerminal) Unsubscribe(sub *outputSubscriber) {
+	m.mu.Lock()
+	for i, s := range m.subscribers {
+		if s == sub {
+			m.subscribers = append(m.subscribers[:i], m.subscribers[i+1:]...)
+			break
+		}
+	}
+	m.mu.Unlock()
+	close(sub.ch)
 }

@@ -8,7 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/tab-dance/tabdance-test/internal/client"
-	"github.com/tab-dance/tabdance-test/internal/daemon"
+	"github.com/tab-dance/tabdance-test/internal/server"
 )
 
 func newClient() *client.Client {
@@ -20,8 +20,8 @@ func newClient() *client.Client {
 }
 
 func runMcp() error {
-	d := daemon.New()
-	return d.Run()
+	s := server.New()
+	return s.Run()
 }
 
 func runExec(opts execOptions) error {

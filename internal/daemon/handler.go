@@ -513,17 +513,11 @@ func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 		return
 	}
 
-	buf := make([]byte, 4096)
-	for {
-		n, err := mt.Ptmx.Read(buf)
-		if err != nil {
-			return
-		}
-		if n == 0 {
-			continue
-		}
+	sub := mt.Subscribe()
+	defer mt.Unsubscribe(sub)
 
-		if _, err := conn.Write(buf[:n]); err != nil {
+	for data := range sub.Channel() {
+		if _, err := conn.Write(data); err != nil {
 			return
 		}
 	}
