@@ -8,6 +8,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/tab-dance/tabdance-test/internal/golden"
 	"github.com/tab-dance/tabdance-test/internal/input"
 	"github.com/tab-dance/tabdance-test/internal/inspect"
 	"github.com/tab-dance/tabdance-test/internal/tape"
@@ -154,6 +155,24 @@ func (s *Server) registerTools() {
 		mcp.WithString("tape_path", mcp.Required(), mcp.Description("Path to the .tape file")),
 		mcp.WithNumber("timeout", mcp.Description("Timeout in seconds for Wait commands (default: 30)")),
 	), s.handlePlayTape)
+
+	s.mcp.AddTool(mcp.NewTool("verify_output",
+		mcp.WithDescription("Verify terminal output against a golden file. Returns match status and diff on mismatch."),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithString("golden_path", mcp.Required(), mcp.Description("Path to the golden file")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
+		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
+	), s.handleVerifyOutput)
+
+	s.mcp.AddTool(mcp.NewTool("update_golden",
+		mcp.WithDescription("Update (or create) a golden file with the current terminal output"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithString("golden_path", mcp.Required(), mcp.Description("Path to the golden file")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
+		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
+	), s.handleUpdateGolden)
 }
 
 func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -589,4 +608,65 @@ func (s *Server) handlePlayTape(_ context.Context, req mcp.CallToolRequest) (*mc
 	}
 
 	return mcp.NewToolResultText(fmt.Sprintf("tape %q executed", tapePath)), nil
+}
+
+func (s *Server) handleVerifyOutput(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	goldenPath, err := req.RequireString("golden_path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	format := req.GetString("format", "plain")
+	trim := req.GetBool("trim", true)
+	unwrap := req.GetBool("unwrap", true)
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt.Lock()
+	defer mt.Unlock()
+
+	result, err := golden.VerifyOutput(mt.Terminal, goldenPath, format, trim, unwrap)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(result.ToJSON()), nil
+}
+
+func (s *Server) handleUpdateGolden(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	goldenPath, err := req.RequireString("golden_path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	format := req.GetString("format", "plain")
+	trim := req.GetBool("trim", true)
+	unwrap := req.GetBool("unwrap", true)
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt.Lock()
+	defer mt.Unlock()
+
+	if err := golden.UpdateGolden(mt.Terminal, goldenPath, format, trim, unwrap); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("golden file %q updated", goldenPath)), nil
 }
