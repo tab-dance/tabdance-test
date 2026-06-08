@@ -18,6 +18,7 @@ type TapeExecutor struct {
 	terminal    Terminal
 	timeout     time.Duration
 	typingSpeed time.Duration
+	depth       int
 }
 
 type Terminal interface {
@@ -51,9 +52,6 @@ func (e *TapeExecutor) Execute(tapePath string) error {
 
 	if errs := p.Errors(); len(errs) > 0 {
 		return fmt.Errorf("parse tape: %s", errs[0].Msg)
-	}
-	if err != nil {
-		return fmt.Errorf("parse tape: %w", err)
 	}
 
 	for _, cmd := range commands {
@@ -117,6 +115,10 @@ func (e *TapeExecutor) executeCommand(cmd parser.Command) error {
 	case token.REQUIRE:
 		return nil
 	case token.SOURCE:
+		if e.depth >= 10 {
+			return fmt.Errorf("source recursion depth limit exceeded")
+		}
+		e.depth++
 		return e.Execute(cmd.Args)
 	case token.ENV:
 		return nil
@@ -259,18 +261,21 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 		}
 		content, _ := f.FormatString()
 		f.Close()
-		e.terminal.Unlock()
 
+		matched := false
 		if scope == "+Screen" || scope == "" {
-			if re.MatchString(content) {
-				return nil
-			}
+			matched = re.MatchString(content)
 		} else if scope == "+Line" {
 			cursorY, _ := e.terminal.GetTerminal().CursorY()
 			lines := strings.Split(content, "\n")
-			if int(cursorY) < len(lines) && re.MatchString(lines[cursorY]) {
-				return nil
+			if int(cursorY) < len(lines) {
+				matched = re.MatchString(lines[cursorY])
 			}
+		}
+		e.terminal.Unlock()
+
+		if matched {
+			return nil
 		}
 
 		time.Sleep(50 * time.Millisecond)

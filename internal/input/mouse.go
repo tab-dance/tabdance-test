@@ -20,6 +20,7 @@ func SendMouse(enc *libghostty.MouseEncoder, ptmxWriter io.Writer, input MouseIn
 	if err != nil {
 		return fmt.Errorf("create mouse event: %w", err)
 	}
+	defer event.Close()
 
 	action, err := parseMouseAction(input.Action)
 	if err != nil {

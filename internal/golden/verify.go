@@ -1,27 +1,22 @@
 package golden
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
 	libghostty "go.mitchellh.com/libghostty"
 )
 
 type VerifyResult struct {
-	Match bool
-	Diff  string
+	Match bool   `json:"match"`
+	Diff  string `json:"diff,omitempty"`
 }
 
 func (r VerifyResult) ToJSON() string {
-	if r.Match {
-		return `{"match":true}`
-	}
-	escaped := strings.ReplaceAll(r.Diff, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-	return fmt.Sprintf(`{"match":false,"diff":"%s"}`, escaped)
+	data, _ := json.Marshal(r)
+	return string(data)
 }
 
 func VerifyOutput(terminal *libghostty.Terminal, goldenPath string, format string, trim, unwrap bool) (*VerifyResult, error) {

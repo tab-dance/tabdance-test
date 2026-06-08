@@ -30,6 +30,7 @@ type ManagedTerminal struct {
 	mu     sync.Mutex
 	done   chan struct{}
 	ptyOut *bytes.Buffer
+	close  sync.Once
 }
 
 type CreateConfig struct {
@@ -172,26 +173,28 @@ func (m *ManagedTerminal) ptyWriteLoop() {
 }
 
 func (m *ManagedTerminal) Close() {
-	close(m.done)
+	m.close.Do(func() {
+		close(m.done)
 
-	if m.Recorder != nil {
-		m.Recorder.Close()
-	}
+		if m.Recorder != nil {
+			m.Recorder.Close()
+		}
 
-	m.KeyEncoder.Close()
-	m.MouseEncoder.Close()
+		m.KeyEncoder.Close()
+		m.MouseEncoder.Close()
 
-	if m.Cmd != nil && m.Cmd.Process != nil {
-		m.Cmd.Process.Signal(syscall.SIGTERM)
-		time.Sleep(100 * time.Millisecond)
-		m.Cmd.Process.Kill()
-	}
+		if m.Cmd != nil && m.Cmd.Process != nil {
+			m.Cmd.Process.Signal(syscall.SIGTERM)
+			time.Sleep(100 * time.Millisecond)
+			m.Cmd.Process.Kill()
+		}
 
-	if m.Ptmx != nil {
-		m.Ptmx.Close()
-	}
+		if m.Ptmx != nil {
+			m.Ptmx.Close()
+		}
 
-	m.Terminal.Close()
+		m.Terminal.Close()
+	})
 }
 
 func (m *ManagedTerminal) Resize(cols, rows uint16) error {

@@ -254,6 +254,8 @@ func (s *Server) handleResetTerminal(_ context.Context, req mcp.CallToolRequest)
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	mt.Lock()
+	defer mt.Unlock()
 	mt.Terminal.Reset()
 	return mcp.NewToolResultText("terminal reset"), nil
 }
@@ -713,10 +715,7 @@ func (s *Server) handleWaitFor(_ context.Context, req mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	mt.Lock()
-	defer mt.Unlock()
-
-	result, err := wait.WaitFor(mt.Terminal, wait.WaitForOptions{
+	result, err := wait.WaitFor(mt, mt.Terminal, wait.WaitForOptions{
 		Pattern:      pattern,
 		Scope:        scope,
 		Timeout:      timeout,

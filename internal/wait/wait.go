@@ -1,35 +1,38 @@
 package wait
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	libghostty "go.mitchellh.com/libghostty"
 )
 
 type WaitForOptions struct {
-	Pattern     string
-	Scope       string
-	Timeout     time.Duration
+	Pattern      string
+	Scope        string
+	Timeout      time.Duration
 	PollInterval time.Duration
-	Format      string
-	Trim        bool
-	Unwrap      bool
+	Format       string
+	Trim         bool
+	Unwrap       bool
 }
 
 type WaitForResult struct {
-	Found     bool
-	MatchLine string
-	ElapsedMs int64
+	Found     bool   `json:"found"`
+	MatchLine string `json:"match_line,omitempty"`
+	ElapsedMs int64  `json:"elapsed_ms"`
 }
 
 func (r WaitForResult) ToJSON() string {
-	return fmt.Sprintf(`{"found":%v,"elapsed_ms":%d}`, r.Found, r.ElapsedMs)
+	data, _ := json.Marshal(r)
+	return string(data)
 }
 
-func WaitFor(terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult, error) {
+func WaitFor(mu sync.Locker, terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult, error) {
 	re, err := regexp.Compile(opts.Pattern)
 	if err != nil {
 		return nil, fmt.Errorf("compile pattern: %w", err)
@@ -42,14 +45,18 @@ func WaitFor(terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult
 	start := time.Now()
 	deadline := start.Add(opts.Timeout)
 	for time.Now().Before(deadline) {
+		mu.Lock()
 		content, err := getTerminalContent(terminal, opts.Format, opts.Trim, opts.Unwrap)
+		mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
 
 		switch opts.Scope {
 		case "line", "+Line":
+			mu.Lock()
 			cursorY, _ := terminal.CursorY()
+			mu.Unlock()
 			lines := strings.Split(content, "\n")
 			if int(cursorY) < len(lines) && re.MatchString(lines[cursorY]) {
 				elapsed := time.Since(start)
