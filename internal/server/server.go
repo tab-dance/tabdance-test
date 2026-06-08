@@ -38,6 +38,7 @@ func New() *Server {
 }
 
 func (s *Server) Run() error {
+	defer s.terminals.CloseAll()
 	return server.ServeStdio(s.mcp)
 }
 
