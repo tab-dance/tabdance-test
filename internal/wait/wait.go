@@ -20,13 +20,13 @@ type WaitForOptions struct {
 }
 
 type WaitForResult struct {
-	Matched   bool
+	Found     bool
 	MatchLine string
-	Elapsed   time.Duration
+	ElapsedMs int64
 }
 
 func (r WaitForResult) ToJSON() string {
-	return fmt.Sprintf(`{"matched":%v,"elapsed":%q}`, r.Matched, r.Elapsed)
+	return fmt.Sprintf(`{"found":%v,"elapsed_ms":%d}`, r.Found, r.ElapsedMs)
 }
 
 func WaitFor(terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult, error) {
@@ -39,7 +39,8 @@ func WaitFor(terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult
 		opts.PollInterval = 50 * time.Millisecond
 	}
 
-	deadline := time.Now().Add(opts.Timeout)
+	start := time.Now()
+	deadline := start.Add(opts.Timeout)
 	for time.Now().Before(deadline) {
 		content, err := getTerminalContent(terminal, opts.Format, opts.Trim, opts.Unwrap)
 		if err != nil {
@@ -51,18 +52,20 @@ func WaitFor(terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult
 			cursorY, _ := terminal.CursorY()
 			lines := strings.Split(content, "\n")
 			if int(cursorY) < len(lines) && re.MatchString(lines[cursorY]) {
-				return &WaitForResult{Matched: true, MatchLine: lines[cursorY], Elapsed: time.Since(deadline.Add(-opts.Timeout))}, nil
+				elapsed := time.Since(start)
+				return &WaitForResult{Found: true, MatchLine: lines[cursorY], ElapsedMs: elapsed.Milliseconds()}, nil
 			}
 		default:
 			if re.MatchString(content) {
-				return &WaitForResult{Matched: true, Elapsed: time.Since(deadline.Add(-opts.Timeout))}, nil
+				elapsed := time.Since(start)
+				return &WaitForResult{Found: true, ElapsedMs: elapsed.Milliseconds()}, nil
 			}
 		}
 
 		time.Sleep(opts.PollInterval)
 	}
 
-	return &WaitForResult{Matched: false, Elapsed: opts.Timeout}, nil
+	return &WaitForResult{Found: false, ElapsedMs: opts.Timeout.Milliseconds()}, nil
 }
 
 func getTerminalContent(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {

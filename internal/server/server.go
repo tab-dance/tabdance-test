@@ -373,6 +373,13 @@ func (s *Server) handleSendMouse(_ context.Context, req mcp.CallToolRequest) (*m
 	mt.Lock()
 	defer mt.Unlock()
 
+	if input.IsScrollAction(action) {
+		if err := input.SendScroll(mt.MouseEncoder, mt, action, x, y, mods); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return mcp.NewToolResultText("scroll event sent"), nil
+	}
+
 	if err := input.SendMouse(mt.MouseEncoder, mt, input.MouseInput{
 		Action: action,
 		Button: button,

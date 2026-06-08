@@ -8,11 +8,12 @@ import (
 )
 
 type ViewResult struct {
-	Content      string `json:"content"`
-	CursorX      uint16 `json:"cursor_x"`
-	CursorY      uint16 `json:"cursor_y"`
-	CursorVisible bool  `json:"cursor_visible"`
-	ActiveScreen string `json:"active_screen"`
+	Content       string `json:"content"`
+	CursorX       uint16 `json:"cursor_x"`
+	CursorY       uint16 `json:"cursor_y"`
+	CursorVisible bool   `json:"cursor_visible"`
+	CursorStyle   string `json:"cursor_style"`
+	ActiveScreen  string `json:"active_screen"`
 }
 
 func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*ViewResult, error) {
@@ -56,12 +57,20 @@ func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*View
 		screenStr = "alternate"
 	}
 
+	styleStr := "bar"
+	if cs, err := term.CursorStyle(); err == nil && cs != nil {
+		if cs.Bold() {
+			styleStr = "block"
+		}
+	}
+
 	return &ViewResult{
-		Content:      content,
-		CursorX:      cursorX,
-		CursorY:      cursorY,
+		Content:       content,
+		CursorX:       cursorX,
+		CursorY:       cursorY,
 		CursorVisible: cursorVisible,
-		ActiveScreen: screenStr,
+		CursorStyle:   styleStr,
+		ActiveScreen:   screenStr,
 	}, nil
 }
 
