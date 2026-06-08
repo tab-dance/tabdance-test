@@ -208,6 +208,10 @@ func (m *ManagedTerminal) Resize(cols, rows uint16) error {
 	m.KeyEncoder.SetOptFromTerminal(m.Terminal)
 	m.MouseEncoder.SetOptFromTerminal(m.Terminal)
 
+	if m.Recorder != nil {
+		m.Recorder.WriteResize(int(cols), int(rows))
+	}
+
 	if m.Ptmx != nil {
 		pty.Setsize(m.Ptmx, &pty.Winsize{
 			Cols: uint16(cols),
@@ -240,6 +244,16 @@ func (m *ManagedTerminal) StopRecording() error {
 	err := m.Recorder.Close()
 	m.Recorder = nil
 	return err
+}
+
+func (m *ManagedTerminal) AddMarker(label string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.Recorder == nil {
+		return fmt.Errorf("not recording")
+	}
+	return m.Recorder.WriteMarker(label)
 }
 
 func (m *ManagedTerminal) WritePty(data []byte) (int, error) {

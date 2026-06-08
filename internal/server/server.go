@@ -127,6 +127,24 @@ func (s *Server) registerTools() {
 		mcp.WithDescription("Get terminal dimensions"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 	), s.handleGetSize)
+
+	s.mcp.AddTool(mcp.NewTool("start_recording",
+		mcp.WithDescription("Start asciinema recording for a terminal"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithString("output_path", mcp.Required(), mcp.Description("Path to write .cast file")),
+		mcp.WithNumber("idle_time_limit", mcp.Description("Idle time limit in seconds (default: 2.0)")),
+	), s.handleStartRecording)
+
+	s.mcp.AddTool(mcp.NewTool("stop_recording",
+		mcp.WithDescription("Stop recording and save the .cast file"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+	), s.handleStopRecording)
+
+	s.mcp.AddTool(mcp.NewTool("add_marker",
+		mcp.WithDescription("Add a marker to the current recording"),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithString("label", mcp.Required(), mcp.Description("Marker label")),
+	), s.handleAddMarker)
 }
 
 func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -470,4 +488,70 @@ func (s *Server) handleGetSize(_ context.Context, req mcp.CallToolRequest) (*mcp
 
 	result := inspect.GetSize(mt.Terminal)
 	return mcp.NewToolResultText(result.ToJSON()), nil
+}
+
+func (s *Server) handleStartRecording(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	path, err := req.RequireString("output_path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	idleLimit := req.GetFloat("idle_time_limit", 2.0)
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := mt.StartRecording(path, idleLimit); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("recording to %s", path)), nil
+}
+
+func (s *Server) handleStopRecording(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := mt.StopRecording(); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText("recording stopped"), nil
+}
+
+func (s *Server) handleAddMarker(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	label, err := req.RequireString("label")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := mt.AddMarker(label); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("marker %q added", label)), nil
 }
