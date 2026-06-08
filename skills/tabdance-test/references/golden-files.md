@@ -30,13 +30,12 @@ Preserves colors, styles, and cursor position. Useful for verifying exact termin
 ```go
 f, _ := libghostty.NewFormatter(term,
     libghostty.WithFormatterFormat(libghostty.FormatterFormatVT),
-    libghostty.WithFormatterExtraCursor(true),
-    libghostty.WithFormatterExtraStyle(true),
-    libghostty.WithFormatterExtraPalette(true),
+    libghostty.WithFormatterTrim(true),
+    libghostty.WithFormatterUnwrap(true),
 )
 defer f.Close()
 
-got, _ := f.Format()
+got, _ := f.FormatString()
 ```
 
 ### HTML Snapshot
@@ -54,57 +53,48 @@ got, _ := f.FormatString()
 
 ## Verification Flow
 
+`verify_output` reads the golden file and compares against current terminal content. If the golden file doesn't exist, it returns `match: false` with a message — it does NOT auto-create. Use `update_golden` to create or update golden files.
+
 ```go
-func (m *ManagedTerminal) VerifyOutput(goldenPath, format string, trim, unwrap bool, update bool) (VerifyResult, error) {
-    // 1. Get current terminal content
-    got := m.GetViewContent(format, trim, unwrap)
+func VerifyOutput(terminal *libghostty.Terminal, goldenPath, format string, trim, unwrap bool) (*VerifyResult, error) {
+    actual, _ := getTerminalContent(terminal, format, trim, unwrap)
 
-    // 2. Read golden file
-    want, err := os.ReadFile(goldenPath)
+    goldenData, err := os.ReadFile(goldenPath)
     if err != nil {
-        if os.IsNotExist(err) && update {
-            // Create new golden file
-            os.WriteFile(goldenPath, []byte(got), 0644)
-            return VerifyResult{Match: true}, nil
+        if os.IsNotExist(err) {
+            return &VerifyResult{Match: false, Diff: "golden file does not exist"}, nil
         }
-        return VerifyResult{}, err
+        return nil, err
     }
 
-    // 3. Compare
-    if got == string(want) {
-        return VerifyResult{Match: true}, nil
+    if actual == string(goldenData) {
+        return &VerifyResult{Match: true}, nil
     }
 
-    // 4. Generate diff
-    diff := generateDiff(string(want), got)
+    diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+        A:        difflib.SplitLines(string(goldenData)),
+        FromFile: goldenPath,
+        B:        difflib.SplitLines(actual),
+        ToFile:   "actual",
+        Context:  3,
+    })
 
-    // 5. Update golden if requested
-    if update {
-        os.WriteFile(goldenPath, []byte(got), 0644)
-    }
-
-    return VerifyResult{
-        Match: false,
-        Diff:  diff,
-    }, nil
+    return &VerifyResult{Match: false, Diff: diff}, nil
 }
 ```
 
 ## Diff Generation
 
+Uses `github.com/pmezard/go-difflib` for unified diff output:
+
 ```go
-func generateDiff(want, got string) string {
-    var buf bytes.Buffer
-    diff := difflib.UnifiedDiff{
-        A:        difflib.SplitLines(want),
-        B:        difflib.SplitLines(got),
-        FromFile: "golden",
-        ToFile:   "actual",
-        Context:  3,
-    }
-    difflib.WriteUnifiedDiff(&buf, diff)
-    return buf.String()
-}
+diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+    A:        difflib.SplitLines(golden),
+    FromFile: "golden",
+    B:        difflib.SplitLines(actual),
+    ToFile:   "actual",
+    Context:  3,
+})
 ```
 
 ## MCP Tool Usage
@@ -113,18 +103,17 @@ func generateDiff(want, got string) string {
 
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "golden_path": "testdata/golden.txt",
   "format": "plain",
   "trim": true,
-  "unwrap": true,
-  "update": false
+  "unwrap": true
 }
 ```
 
 Response on match:
 ```json
-{"match": true, "diff": ""}
+{"match": true}
 ```
 
 Response on mismatch:
@@ -137,9 +126,11 @@ Response on mismatch:
 
 ### Update Golden
 
+Separate tool to prevent accidental overwrites. Creates or replaces the golden file with current terminal content.
+
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "golden_path": "testdata/golden.txt",
   "format": "plain",
   "trim": true,
@@ -170,5 +161,5 @@ testdata/
 - Use `vt` format when exact styling matters
 - Always set `trim: true` and `unwrap: true` for consistent comparison
 - Store golden files in git for version control
-- Use `update: true` to create/update golden files, then review the diff before committing
+- Use `update_golden` to create/update golden files, then review the diff before committing
 - Use `wait_for` before verification to ensure the application has finished rendering

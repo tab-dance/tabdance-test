@@ -8,29 +8,43 @@ tabdance-test can execute VHS `.tape` files against a headless terminal, transla
 
 For VHS tape DSL and parsing details, see the **vhs** skill.
 
-## Tape Executor
+## TapeExecutor
+
+The `TapeExecutor` uses a `Terminal` interface to decouple from `ManagedTerminal`:
 
 ```go
-type TapeExecutor struct {
-    terminal *ManagedTerminal
-    timeout  time.Duration
+type Terminal interface {
+    Lock()
+    Unlock()
+    WritePty(data []byte) (int, error)
+    GetTerminal() *libghostty.Terminal
+    GetKeyEncoder() *libghostty.KeyEncoder
+    GetMouseEncoder() *libghostty.MouseEncoder
+    Resize(cols, rows uint16) error
+    AddMarker(label string) error
 }
 
-func NewTapeExecutor(terminal *ManagedTerminal, timeout time.Duration) *TapeExecutor {
-    return &TapeExecutor{terminal: terminal, timeout: timeout}
+type TapeExecutor struct {
+    terminal    Terminal
+    timeout     time.Duration
+    typingSpeed time.Duration
 }
+
+func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor
 ```
 
 ## Command Translation
 
 | VHS Command | go-libghostty Operation |
 |-------------|------------------------|
-| `Type "text"` | `KeyEncoder.Encode()` for each character, write to PTY |
+| `Type "text"` | `KeyEncoder.Encode()` for each character with `SetUTF8`, write to PTY |
 | `Enter[N]` | Encode `KeyEnter` N times |
 | `Backspace[N]` | Encode `KeyBackspace` N times |
 | `Tab[N]` | Encode `KeyTab` N times |
-| `Ctrl+X` | Encode `KeyX` with `ModCtrl` |
-| `Alt+X` | Encode with `ModAlt` |
+| `Space[N]` | Encode `KeySpace` N times |
+| `Ctrl+X` | Encode key with `ModCtrl` |
+| `Alt+X` | Encode key with `ModAlt` |
+| `Shift+X` | Encode key with `ModShift` |
 | `Up/Down/Left/Right[N]` | Encode arrow key N times |
 | `PageUp/PageDown[N]` | Encode page key N times |
 | `Escape` | Encode `KeyEscape` |
@@ -38,15 +52,15 @@ func NewTapeExecutor(terminal *ManagedTerminal, timeout time.Duration) *TapeExec
 | `Sleep T` | `time.Sleep(parseDuration(T))` |
 | `Wait /pattern/` | Poll `Formatter.FormatString()` until regex matches |
 | `Set Width/Height` | `term.Resize()` + PTY resize |
-| `Set FontSize` | No-op (headless has no font) |
-| `Set Shell` | No-op (shell already running) |
 | `Set TypingSpeed T` | Set per-character delay |
-| `Screenshot path` | `RenderState` → custom PNG renderer |
-| `Hide` | Pause asciinema recording |
-| `Show` | Resume asciinema recording |
-| `Copy/Paste` | Clipboard operations (if supported) |
-| `Env KEY VALUE` | Set env var (before process start only) |
-| `Source path` | Parse and execute included tape |
+| `Set FontSize/Shell/Theme/Framerate/PlaybackSpeed/WaitTimeout` | No-op (headless) |
+| `Screenshot path` | `AddMarker("screenshot: path")` |
+| `Hide` | `AddMarker("hide")` |
+| `Show` | `AddMarker("show")` |
+| `Output/Require` | No-op |
+| `Copy/Paste` | No-op |
+| `Env KEY VALUE` | No-op (env set before process start only) |
+| `Source path` | Parse and execute included tape recursively |
 | `ScrollUp/ScrollDown` | `term.ScrollViewportDelta()` |
 
 ## Implementation
@@ -57,72 +71,53 @@ func (e *TapeExecutor) Execute(tapePath string) error {
     if err != nil { return err }
 
     l := lexer.New(string(data))
-    p := parser.New()
-    commands, err := p.Parse(l)
-    if err != nil { return err }
+    p := parser.New(l)
+    commands := p.Parse()
 
-    typingSpeed := 50 * time.Millisecond
+    if errs := p.Errors(); len(errs) > 0 {
+        return fmt.Errorf("parse tape: %s", errs[0].Msg)
+    }
 
     for _, cmd := range commands {
-        switch cmd.Type {
-        case token.TYPE:
-            text := cmd.Args
-            for _, r := range text {
-                e.terminal.SendKeyRune(r)
-                time.Sleep(typingSpeed)
-            }
-
-        case token.ENTER:
-            count := parseCount(cmd.Args, 1)
-            for i := 0; i < count; i++ {
-                e.terminal.SendKey(libghostty.KeyEnter, 0)
-            }
-
-        case token.CTRL:
-            key, mods := parseCtrlCombo(cmd.Args)
-            e.terminal.SendKey(key, mods)
-
-        case token.SLEEP:
-            d := parseDuration(cmd.Args)
-            time.Sleep(d)
-
-        case token.WAIT:
-            pattern := cmd.Args
-            scope := cmd.Options // "+Screen" or "+Line"
-            timeout := 15 * time.Second
-            if err := e.waitForPattern(pattern, scope, timeout); err != nil {
-                return fmt.Errorf("wait timeout: %w", err)
-            }
-
-        case token.SET:
-            e.applySetting(cmd.Options, cmd.Args)
-
-        case token.SCREENSHOT:
-            e.terminal.TakeScreenshot(cmd.Args)
+        if err := e.executeCommand(cmd); err != nil {
+            return fmt.Errorf("execute command %s: %w", cmd.Type, err)
         }
     }
     return nil
 }
 ```
 
+Key differences from VHS CLI parser API:
+- `parser.New(l)` takes the lexer as argument (not `parser.New()`)
+- `p.Parse()` returns `[]Command` with no error (check `p.Errors()` separately)
+
 ## Wait Implementation
 
+The `Wait` command polls terminal content at 50ms intervals:
+
 ```go
-func (e *TapeExecutor) waitForPattern(pattern, scope string, timeout time.Duration) error {
+func (e *TapeExecutor) executeWait(cmd parser.Command) error {
+    pattern := cmd.Args
+    scope := cmd.Options  // "+Screen" or "+Line"
+    timeout := e.timeout
+
     re := regexp.MustCompile(pattern)
     deadline := time.Now().Add(timeout)
 
     for time.Now().Before(deadline) {
-        content := e.terminal.GetViewContent("plain", true, true)
+        f, _ := libghostty.NewFormatter(e.terminal.GetTerminal(),
+            libghostty.WithFormatterFormat(libghostty.FormatterFormatPlain),
+            libghostty.WithFormatterTrim(true),
+            libghostty.WithFormatterUnwrap(true),
+        )
+        content, _ := f.FormatString()
+        f.Close()
 
-        if scope == "+Screen" {
-            if re.MatchString(content) {
-                return nil
-            }
-        } else {
-            // Line scope: match current line
+        if scope == "+Screen" || scope == "" {
+            if re.MatchString(content) { return nil }
+        } else if scope == "+Line" {
+            cursorY, _ := e.terminal.GetTerminal().CursorY()
             lines := strings.Split(content, "\n")
-            cursorY := e.terminal.Terminal.CursorY()
             if int(cursorY) < len(lines) && re.MatchString(lines[cursorY]) {
                 return nil
             }
@@ -131,7 +126,7 @@ func (e *TapeExecutor) waitForPattern(pattern, scope string, timeout time.Durati
         time.Sleep(50 * time.Millisecond)
     }
 
-    return fmt.Errorf("pattern %q not found within %v", pattern, timeout)
+    return fmt.Errorf("wait timeout: pattern %q not found within %v", pattern, timeout)
 }
 ```
 
@@ -139,7 +134,7 @@ func (e *TapeExecutor) waitForPattern(pattern, scope string, timeout time.Durati
 
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "tape_path": "tests/login-flow.tape",
   "timeout": 30
 }

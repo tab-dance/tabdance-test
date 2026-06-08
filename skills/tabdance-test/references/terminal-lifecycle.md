@@ -26,13 +26,20 @@ Use for: testing VT output without a running process, replaying recordings, snap
 var ptyOut bytes.Buffer
 term, _ := libghostty.NewTerminal(
     libghostty.WithSize(cols, rows),
+    libghostty.WithMaxScrollback(scrollback),
     libghostty.WithWritePty(func(_ *libghostty.Terminal, data []byte) {
         ptyOut.Write(data)
     }),
 )
 
+// Create and sync encoders
+keyEnc, _ := libghostty.NewKeyEncoder()
+keyEnc.SetOptFromTerminal(term)
+mouseEnc, _ := libghostty.NewMouseEncoder()
+mouseEnc.SetOptFromTerminal(term)
+
 // Spawn child process
-cmd := exec.Command(command, args...)
+cmd := exec.Command("sh", "-c", command)
 cmd.Env = append(os.Environ(), envPairs...)
 cmd.Dir = workingDirectory
 
@@ -49,7 +56,12 @@ go func() {
     for {
         n, err := ptmx.Read(buf)
         if err != nil { break }
+        m.mu.Lock()
         term.VTWrite(buf[:n])
+        if m.Recorder != nil {
+            m.Recorder.WriteOutput(buf[:n])
+        }
+        m.mu.Unlock()
     }
 }()
 go func() {
@@ -57,7 +69,9 @@ go func() {
     for {
         n, err := ptyOut.Read(buf)
         if err != nil { break }
-        ptmx.Write(buf[:n])
+        if ptmx != nil {
+            ptmx.Write(buf[:n])
+        }
     }
 }()
 ```
@@ -82,69 +96,104 @@ go-libghostty Terminal
 2. **Terminal → Child**: Terminal generates query responses → `WritePty` callback fires → bridge goroutine writes to PTY master → child reads from stdin
 3. **Agent → Terminal**: Agent sends keys → `KeyEncoder.Encode()` → encoded bytes written to PTY master → child receives input
 
-## Terminal Manager
+## ManagedTerminal
 
-tabdance-test maintains a map of active terminals:
+```go
+type ManagedTerminal struct {
+    ID           string
+    Terminal     *libghostty.Terminal
+    KeyEncoder   *libghostty.KeyEncoder
+    MouseEncoder *libghostty.MouseEncoder
+    Cmd          *exec.Cmd
+    Ptmx         *os.File
+    PTYOut       *bytes.Buffer
+    Recorder     *AsciicastRecorder
+    Command      string
+    Cols         uint16
+    Rows         uint16
+}
+
+// Accessor methods (used by TapeExecutor's Terminal interface)
+func (m *ManagedTerminal) GetTerminal() *libghostty.Terminal     { return m.Terminal }
+func (m *ManagedTerminal) GetKeyEncoder() *libghostty.KeyEncoder { return m.KeyEncoder }
+func (m *ManagedTerminal) GetMouseEncoder() *libghostty.MouseEncoder { return m.MouseEncoder }
+
+// Mutex access
+func (m *ManagedTerminal) Lock()
+func (m *ManagedTerminal) Unlock()
+
+// PTY I/O
+func (m *ManagedTerminal) WritePty(data []byte) (int, error)
+func (m *ManagedTerminal) Write(data []byte) (int, error)  // io.Writer, delegates to WritePty
+```
+
+## Terminal Manager
 
 ```go
 type TerminalManager struct {
     mu         sync.Mutex
     terminals  map[string]*ManagedTerminal
+    counter    int
 }
 
-type ManagedTerminal struct {
-    ID         string
-    Terminal   *libghostty.Terminal
-    KeyEncoder *libghostty.KeyEncoder
-    MouseEncoder *libghostty.MouseEncoder
-    Cmd        *exec.Cmd
-    Ptmx       *os.File
-    PTYOut     *bytes.Buffer  // captures WritePty output
-    Recorder   *AsciicastRecorder
-}
+func (m *TerminalManager) Create(cfg CreateConfig) (*ManagedTerminal, error)
+func (m *TerminalManager) Get(id string) (*ManagedTerminal, error)
+func (m *TerminalManager) List() []TerminalInfo
+func (m *TerminalManager) Delete(id string) error
+func (m *TerminalManager) CloseAll()
 ```
+
+Terminal IDs are auto-generated as `term_N` (incrementing counter).
 
 ## Resize Handling
 
 When the agent resizes a terminal:
 
 1. `term.Resize(cols, rows, cellWidthPx, cellHeightPx)` — updates go-libghostty terminal
-2. If PTY is active: `pty.Setsize(ptmx, &pty.Winsize{Cols, Rows})` — sends SIGWINCH to child
-3. `enc.SetOptFromTerminal(term)` — re-sync key encoder to new terminal state
+2. `keyEnc.SetOptFromTerminal(term)` + `mouseEnc.SetOptFromTerminal(term)` — re-sync encoders
+3. If PTY is active: `pty.Setsize(ptmx, &pty.Winsize{Cols, Rows})` — sends SIGWINCH to child
+4. If recording: `recorder.WriteResize(cols, rows)` — records resize event
 
 ## Teardown
 
 ```go
 func (m *ManagedTerminal) Close() {
-    // 1. Stop recording if active
+    // 1. Signal done channel (stops bridge goroutines)
+    close(m.done)
+
+    // 2. Stop recording if active
     if m.Recorder != nil {
         m.Recorder.Close()
     }
 
-    // 2. Close encoders
+    // 3. Close encoders
     m.KeyEncoder.Close()
     m.MouseEncoder.Close()
 
-    // 3. Kill child process
+    // 4. Kill child process
     if m.Cmd != nil && m.Cmd.Process != nil {
         m.Cmd.Process.Signal(syscall.SIGTERM)
         time.Sleep(100 * time.Millisecond)
         m.Cmd.Process.Kill()
     }
 
-    // 4. Close PTY
+    // 5. Close PTY
     if m.Ptmx != nil {
         m.Ptmx.Close()
     }
 
-    // 5. Close terminal last
+    // 6. Close terminal last
     m.Terminal.Close()
 }
 ```
 
+Server shutdown calls `s.terminals.CloseAll()` via `defer` in `Run()`.
+
 ## Concurrency
 
-- Each `ManagedTerminal` is accessed by multiple goroutines (PTY read, PTY write, MCP handler)
-- All terminal access must be serialized via a per-terminal mutex
+- Each `ManagedTerminal` has its own `sync.Mutex`, exposed via `Lock()`/`Unlock()` methods
+- All terminal access must be serialized via the per-terminal mutex
 - The `WritePty` callback runs synchronously during `VTWrite` — must not call `VTWrite` on the same terminal
-- The PTY bridge goroutines must not call terminal methods directly; they write to/read from buffers
+- The PTY bridge goroutines hold the mutex during `VTWrite` + recorder write
+- MCP handlers lock the terminal for the duration of their operation
+- Bridge goroutines exit when the `done` channel is closed

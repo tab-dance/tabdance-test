@@ -29,7 +29,7 @@ Create a new headless terminal, optionally running a child process.
 **Output:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "cols": 80,
   "rows": 24
 }
@@ -43,7 +43,7 @@ List all active terminals.
 ```json
 {
   "terminals": [
-    {"id": "term_abc123", "cols": 80, "rows": 24, "command": "bash"}
+    {"id": "term_1", "cols": 80, "rows": 24, "command": "bash"}
   ]
 }
 ```
@@ -55,7 +55,7 @@ Close and destroy a terminal.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123"
+  "terminal_id": "term_1"
 }
 ```
 
@@ -66,7 +66,7 @@ Full terminal reset (RIS).
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123"
+  "terminal_id": "term_1"
 }
 ```
 
@@ -79,7 +79,7 @@ Send key events to a terminal. Encodes keys using KeyEncoder synced to terminal 
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "keys": [
     {"key": "Enter"},
     {"key": "KeyA", "mods": "ctrl"},
@@ -100,7 +100,7 @@ Send raw text to the terminal's PTY stdin (not VT-encoded — goes directly to t
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "text": "ls -la\n"
 }
 ```
@@ -112,7 +112,7 @@ Send mouse events.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "action": "press",
   "button": "left",
   "x": 10,
@@ -124,6 +124,8 @@ Send mouse events.
 **Actions**: `press`, `release`, `move`, `scroll_up`, `scroll_down`
 **Buttons**: `left`, `middle`, `right`, `4`–`8`
 
+Scroll actions (`scroll_up`/`scroll_down`) are translated to button 4/5 press+release sequences automatically.
+
 #### `send_focus`
 
 Send focus event.
@@ -131,10 +133,12 @@ Send focus event.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "event": "gained"
 }
 ```
+
+**Events**: `gained`, `lost`
 
 #### `send_paste`
 
@@ -143,7 +147,7 @@ Send paste event (bracketed-paste-aware).
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "text": "pasted content"
 }
 ```
@@ -152,12 +156,12 @@ Send paste event (bracketed-paste-aware).
 
 #### `get_view`
 
-Get the current terminal view as plain text.
+Get the current terminal view as plain text, VT, or HTML.
 
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "format": "plain",
   "trim": true,
   "unwrap": true
@@ -185,7 +189,7 @@ Get a specific cell's content and style.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "x": 10,
   "y": 5
 }
@@ -211,7 +215,7 @@ Get cursor position and style.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123"
+  "terminal_id": "term_1"
 }
 ```
 
@@ -233,7 +237,7 @@ Get terminal dimensions.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123"
+  "terminal_id": "term_1"
 }
 ```
 
@@ -256,7 +260,7 @@ Resize the terminal.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "cols": 120,
   "rows": 40
 }
@@ -271,7 +275,7 @@ Start asciinema recording for a terminal.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "output_path": "recording.cast",
   "idle_time_limit": 2.0
 }
@@ -284,7 +288,7 @@ Stop recording and save the .cast file.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123"
+  "terminal_id": "term_1"
 }
 ```
 
@@ -295,7 +299,7 @@ Add a marker to the current recording.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "label": "test step 1"
 }
 ```
@@ -309,7 +313,7 @@ Execute a VHS tape file against a terminal.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "tape_path": "test.tape",
   "timeout": 30
 }
@@ -324,25 +328,20 @@ Verify terminal output against a golden file.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "golden_path": "testdata/golden.txt",
   "format": "plain",
   "trim": true,
-  "unwrap": true,
-  "update": false
+  "unwrap": true
 }
 ```
 
-**Output:**
+**Output on match:**
 ```json
-{
-  "match": true,
-  "diff": ""
-}
+{"match": true}
 ```
 
-Or on mismatch:
-
+**Output on mismatch:**
 ```json
 {
   "match": false,
@@ -352,12 +351,12 @@ Or on mismatch:
 
 #### `update_golden`
 
-Update a golden file with current terminal content.
+Update (or create) a golden file with current terminal content. Separate tool to prevent accidental overwrites.
 
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "golden_path": "testdata/golden.txt",
   "format": "plain",
   "trim": true,
@@ -374,7 +373,7 @@ Wait for a pattern to appear on screen.
 **Input:**
 ```json
 {
-  "terminal_id": "term_abc123",
+  "terminal_id": "term_1",
   "pattern": "regex pattern",
   "scope": "screen",
   "timeout": 15
@@ -383,7 +382,7 @@ Wait for a pattern to appear on screen.
 
 **Scopes**: `screen` (any line), `line` (current line)
 
-**Output:**
+**Output on match:**
 ```json
 {
   "found": true,
@@ -391,8 +390,7 @@ Wait for a pattern to appear on screen.
 }
 ```
 
-Or on timeout:
-
+**Output on timeout:**
 ```json
 {
   "found": false,

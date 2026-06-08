@@ -8,8 +8,8 @@ Reference for injecting keyboard and mouse input into headless terminals in tabd
 
 ```
 Agent request (key name + mods)
-  → Parse key name to libghostty.Key
-  → Parse mods to libghostty.Mods
+  → libghostty.ParseKey(key) → libghostty.Key
+  → libghostty.ParseMods(mods) → libghostty.Mods
   → Create KeyEvent
   → KeyEncoder.Encode(event)
   → Encoded bytes (escape sequence)
@@ -18,7 +18,7 @@ Agent request (key name + mods)
 
 ### Key Name Parsing
 
-The MCP `send_keys` tool accepts key names in W3C format:
+The MCP `send_keys` tool accepts key names in W3C format, parsed by `libghostty.ParseKey`:
 
 | Input | libghostty.Key |
 |-------|---------------|
@@ -35,10 +35,12 @@ The MCP `send_keys` tool accepts key names in W3C format:
 | `PageUp` | `KeyPageUp` |
 | `PageDown` | `KeyPageDown` |
 | `ArrowUp/Down/Left/Right` | `KeyArrowUp/Down/Left/Right` |
-| `F1` through `F12` | `KeyF1` through `KeyF12` |
+| `F1` through `F25` | `KeyF1` through `KeyF25` |
 | `Space` | `KeySpace` |
 
 ### Modifier Parsing
+
+Parsed by `libghostty.ParseMods`:
 
 | Input | libghostty.Mods |
 |-------|----------------|
@@ -52,36 +54,47 @@ The MCP `send_keys` tool accepts key names in W3C format:
 ### Implementation
 
 ```go
-func (m *ManagedTerminal) SendKeys(keys []KeyInput) error {
-    m.mu.Lock()
-    defer m.mu.Unlock()
+type KeyInput struct {
+    Key  string `json:"key"`
+    Mods string `json:"mods,omitempty"`
+    Text string `json:"text,omitempty"`
+}
 
+func SendKeys(enc *libghostty.KeyEncoder, ptmxWriter io.Writer, term *libghostty.Terminal, keys []KeyInput) error {
     for _, k := range keys {
         if k.Text != "" {
-            // Send raw text to PTY
-            m.Ptmx.Write([]byte(k.Text))
+            ptmxWriter.Write([]byte(k.Text))
             continue
         }
 
-        event := libghostty.NewKeyEvent()
-        defer event.Close()
+        key, _ := libghostty.ParseKey(k.Key)
+        var mods libghostty.Mods
+        if k.Mods != "" {
+            mods, _ = libghostty.ParseMods(k.Mods)
+        }
 
+        event, _ := libghostty.NewKeyEvent()
         event.SetAction(libghostty.KeyActionPress)
-        event.SetKey(parseKey(k.Key))
-        event.SetMods(parseMods(k.Mods))
+        event.SetKey(key)
+        event.SetMods(mods)
 
-        seq, err := m.KeyEncoder.Encode(event)
-        if err != nil { return err }
+        seq, _ := enc.Encode(event)
+        event.Close()
         if seq != nil {
-            m.Ptmx.Write(seq)
+            ptmxWriter.Write(seq)
         }
 
         // Also send release event for Kitty keyboard protocol
-        if m.Terminal.KittyKeyboardFlags() != libghostty.KittyKeyDisabled {
-            event.SetAction(libghostty.KeyActionRelease)
-            seq, _ = m.KeyEncoder.Encode(event)
+        kkf, _ := term.KittyKeyboardFlags()
+        if kkf != libghostty.KittyKeyDisabled {
+            releaseEvent, _ := libghostty.NewKeyEvent()
+            releaseEvent.SetAction(libghostty.KeyActionRelease)
+            releaseEvent.SetKey(key)
+            releaseEvent.SetMods(mods)
+            seq, _ = enc.Encode(releaseEvent)
+            releaseEvent.Close()
             if seq != nil {
-                m.Ptmx.Write(seq)
+                ptmxWriter.Write(seq)
             }
         }
     }
@@ -114,24 +127,41 @@ Agent request (action, button, position, mods)
 ### Implementation
 
 ```go
-func (m *ManagedTerminal) SendMouse(input MouseInput) error {
-    m.mu.Lock()
-    defer m.mu.Unlock()
+type MouseInput struct {
+    Action string  `json:"action"`
+    Button string  `json:"button"`
+    X      float32 `json:"x"`
+    Y      float32 `json:"y"`
+    Mods   string  `json:"mods,omitempty"`
+}
 
-    event := libghostty.NewMouseEvent()
-    defer event.Close()
-
+func SendMouse(enc *libghostty.MouseEncoder, ptmxWriter io.Writer, input MouseInput) error {
+    event, _ := libghostty.NewMouseEvent()
     event.SetAction(parseMouseAction(input.Action))
-    event.SetButton(parseMouseButton(input.Button))
-    event.SetMods(parseMods(input.Mods))
+    event.SetButton(libghostty.ParseMouseButton(input.Button))
+    if input.Mods != "" {
+        mods, _ := libghostty.ParseMods(input.Mods)
+        event.SetMods(mods)
+    }
     event.SetPosition(libghostty.MousePosition{X: input.X, Y: input.Y})
 
-    seq, err := m.MouseEncoder.Encode(event)
-    if err != nil { return err }
+    seq, _ := enc.Encode(event)
+    event.Close()
     if seq != nil {
-        m.Ptmx.Write(seq)
+        ptmxWriter.Write(seq)
     }
     return nil
+}
+```
+
+### Scroll Support
+
+Scroll actions (`scroll_up`/`scroll_down`) are translated to button 4/5 press+release:
+
+```go
+func SendScroll(enc *libghostty.MouseEncoder, ptmxWriter io.Writer, action string, x, y float32, mods string) error {
+    // scroll_up → button 4, scroll_down → button 5
+    // Sends both press and release events
 }
 ```
 
@@ -146,18 +176,11 @@ Reads mouse tracking mode and output format from terminal state.
 ## Focus Events
 
 ```go
-func (m *ManagedTerminal) SendFocus(event string) error {
-    var fe libghostty.FocusEvent
-    switch event {
-    case "gained":
-        fe = libghostty.FocusGained
-    case "lost":
-        fe = libghostty.FocusLost
-    }
-
+func SendFocus(ptmxWriter io.Writer, event string) error {
+    fe, _ := libghostty.ParseFocusEvent(event)  // "gained" or "lost"
     seq, _ := libghostty.FocusEncode(fe)
     if seq != nil {
-        m.Ptmx.Write(seq)
+        ptmxWriter.Write(seq)
     }
     return nil
 }
@@ -166,10 +189,12 @@ func (m *ManagedTerminal) SendFocus(event string) error {
 ## Paste Events
 
 ```go
-func (m *ManagedTerminal) SendPaste(text string) error {
-    bracketed, _ := m.Terminal.ModeGet(libghostty.ModeBracketedPaste)
+func SendPaste(ptmxWriter io.Writer, term *libghostty.Terminal, text string) error {
+    bracketed, _ := term.ModeGet(libghostty.ModeBracketedPaste)
     encoded, _ := libghostty.PasteEncode([]byte(text), bracketed)
-    m.Ptmx.Write(encoded)
+    if encoded != nil {
+        ptmxWriter.Write(encoded)
+    }
     return nil
 }
 ```
@@ -178,46 +203,31 @@ func (m *ManagedTerminal) SendPaste(text string) error {
 
 ### Type a String
 
-```go
-func (m *ManagedTerminal) TypeString(s string) error {
-    m.mu.Lock()
-    defer m.mu.Unlock()
+The `Type` command in VHS tapes encodes each character individually:
 
-    for _, r := range s {
-        event := libghostty.NewKeyEvent()
-        event.SetAction(libghostty.KeyActionPress)
-        event.SetUTF8(string(r))
-        seq, _ := m.KeyEncoder.Encode(event)
-        if seq != nil {
-            m.Ptmx.Write(seq)
-        }
-        event.Close()
+```go
+for _, r := range text {
+    event, _ := libghostty.NewKeyEvent()
+    event.SetAction(libghostty.KeyActionPress)
+    event.SetUTF8(string(r))
+    seq, _ := enc.Encode(event)
+    event.Close()
+    if seq != nil {
+        ptmxWriter.Write(seq)
     }
-    return nil
+    time.Sleep(typingSpeed)
 }
 ```
 
 ### Press Ctrl+C
 
 ```go
-event := libghostty.NewKeyEvent()
-defer event.Close()
+key, _ := libghostty.ParseKey("KeyC")
+mods, _ := libghostty.ParseMods("ctrl")
+event, _ := libghostty.NewKeyEvent()
 event.SetAction(libghostty.KeyActionPress)
-event.SetKey(libghostty.KeyC)
-event.SetMods(libghostty.ModCtrl)
+event.SetKey(key)
+event.SetMods(mods)
 seq, _ := enc.Encode(event)
-ptmx.Write(seq)
-```
-
-### Navigate with Arrow Keys
-
-```go
-for i := 0; i < count; i++ {
-    event := libghostty.NewKeyEvent()
-    event.SetAction(libghostty.KeyActionPress)
-    event.SetKey(libghostty.KeyArrowUp)
-    seq, _ := enc.Encode(event)
-    ptmx.Write(seq)
-    event.Close()
-}
+event.Close()
 ```

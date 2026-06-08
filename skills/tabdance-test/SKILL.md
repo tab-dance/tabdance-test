@@ -19,7 +19,7 @@ Comprehensive reference for developing [tabdance-test](.) — the MCP server tha
 
 ```
 AI Agent
-  → MCP protocol (stdio/SSE)
+  → MCP protocol (stdio)
     → tabdance-test MCP server
       → go-libghostty (headless VT terminal)
         → libghostty-vt (C VT emulation library)
@@ -27,6 +27,7 @@ AI Agent
       → Asciicast recorder
       → VHS tape parser + executor
       → Golden file comparator
+      → Wait/poll regex matcher
 ```
 
 ## Sub-Resources
@@ -34,15 +35,16 @@ AI Agent
 Load the reference that matches your task. When in doubt, load multiple references.
 
 || Keywords | Reference |
-||----------|----------|
-|| MCP tools, tool interface, create_terminal, send_keys, send_text, resize, get_view, get_content, screenshot, reset, list_terminals, close_terminal, MCP protocol, tool schema | [references/mcp-tools.md](references/mcp-tools.md) |
-|| terminal lifecycle, headless terminal, PTY, child process, go-libghostty, NewTerminal, VTWrite, Resize, effect callbacks, WritePty, bidirectional communication | [references/terminal-lifecycle.md](references/terminal-lifecycle.md) |
-|| key injection, send_keys, KeyEncoder, KeyEvent, Key, Mods, KeyAction, Kitty keyboard, mouse injection, MouseEncoder, MouseEvent, focus events, paste events | [references/input-injection.md](references/input-injection.md) |
-|| terminal inspection, get_view, get_content, Formatter, RenderState, GridRef, Cell, Row, Style, cursor position, screen content, plain text, VT, HTML | [references/terminal-inspection.md](references/terminal-inspection.md) |
-|| asciinema recording, .cast, AsciicastRecorder, incremental recording, timing, event stream, header, output/input/marker/resize events | [references/asciinema-recording.md](references/asciinema-recording.md) |
-|| VHS tape playback, .tape, tape parser, tape executor, Type, Enter, Ctrl, Sleep, Wait, Screenshot, converting tape to go-libghostty operations | [references/vhs-playback.md](references/vhs-playback.md) |
-|| golden file, verification, comparison, plain text, VT snapshot, HTML snapshot, diff, assertion, testdata, update golden | [references/golden-files.md](references/golden-files.md) |
-|| bubbletea testing, tea.Program, headless, WithInput, WithOutput, WithoutRenderer, testing TUI, agent-driven test, tabdance integration test | [references/bubbletea-testing.md](references/bubbletea-testing.md) |
+|----------|----------|
+| MCP tools, tool interface, create_terminal, send_keys, send_text, resize, get_view, get_content, screenshot, reset, list_terminals, close_terminal, MCP protocol, tool schema | [references/mcp-tools.md](references/mcp-tools.md) |
+| terminal lifecycle, headless terminal, PTY, child process, go-libghostty, NewTerminal, VTWrite, Resize, effect callbacks, WritePty, bidirectional communication | [references/terminal-lifecycle.md](references/terminal-lifecycle.md) |
+| key injection, send_keys, KeyEncoder, KeyEvent, Key, Mods, KeyAction, Kitty keyboard, mouse injection, MouseEncoder, MouseEvent, focus events, paste events, scroll | [references/input-injection.md](references/input-injection.md) |
+| terminal inspection, get_view, get_content, Formatter, RenderState, GridRef, Cell, Row, Style, cursor position, screen content, plain text, VT, HTML | [references/terminal-inspection.md](references/terminal-inspection.md) |
+| asciinema recording, .cast, AsciicastRecorder, incremental recording, timing, event stream, header, output/input/marker/resize events | [references/asciinema-recording.md](references/asciinema-recording.md) |
+| VHS tape playback, .tape, tape parser, tape executor, Type, Enter, Ctrl, Sleep, Wait, Screenshot, converting tape to go-libghostty operations | [references/vhs-playback.md](references/vhs-playback.md) |
+| golden file, verification, comparison, plain text, VT snapshot, HTML snapshot, diff, assertion, testdata, update golden | [references/golden-files.md](references/golden-files.md) |
+| wait_for, poll, regex, screen match, line match, timeout, elapsed | [references/wait-poll.md](references/wait-poll.md) |
+| bubbletea testing, tea.Program, headless, WithInput, WithOutput, WithoutRenderer, testing TUI, agent-driven test, tabdance integration test | [references/bubbletea-testing.md](references/bubbletea-testing.md) |
 
 ## Quick Guide
 
@@ -53,6 +55,7 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 - **How do I create asciinema recordings?** → [references/asciinema-recording.md](references/asciinema-recording.md)
 - **How do I play VHS tapes?** → [references/vhs-playback.md](references/vhs-playback.md)
 - **How do I verify output against golden files?** → [references/golden-files.md](references/golden-files.md)
+- **How do I wait for content to appear?** → [references/wait-poll.md](references/wait-poll.md)
 - **How do I test Bubble Tea applications?** → [references/bubbletea-testing.md](references/bubbletea-testing.md)
 
 ## Cross-Project References
