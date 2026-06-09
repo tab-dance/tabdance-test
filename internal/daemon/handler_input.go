@@ -25,6 +25,7 @@ func (d *Daemon) handleSend(req Request) Response {
 func (d *Daemon) handleKeys(req Request) Response {
 	id := req.GetString("id")
 	keys := req.GetStringSlice("keys")
+	globalMods := req.GetString("mods")
 
 	mt, err := d.manager.Get(id)
 	if err != nil {
@@ -33,7 +34,11 @@ func (d *Daemon) handleKeys(req Request) Response {
 
 	var keyInputs []input.KeyInput
 	for _, k := range keys {
-		keyInputs = append(keyInputs, input.KeyInput{Key: k})
+		ki := input.ParseKeyCombo(k)
+		if ki.Mods == "" && globalMods != "" {
+			ki.Mods = globalMods
+		}
+		keyInputs = append(keyInputs, ki)
 	}
 
 	if len(keyInputs) == 0 {

@@ -15,6 +15,52 @@ type KeyInput struct {
 	Text string `json:"text,omitempty"`
 }
 
+var modifierNames = map[string]bool{
+	"ctrl":     true,
+	"alt":      true,
+	"shift":    true,
+	"super":    true,
+	"control":  true,
+	"cmd":      true,
+	"command":  true,
+	"opt":      true,
+	"option":   true,
+	"caps_lock": true,
+	"num_lock": true,
+}
+
+// ParseKeyCombo splits a key combo string like "Ctrl+F" or "Ctrl+Alt+Enter"
+// into a KeyInput with separate Key and Mods fields. If the string contains
+// no "+", it is returned as-is in the Key field with empty Mods.
+func ParseKeyCombo(s string) KeyInput {
+	parts := strings.Split(s, "+")
+	if len(parts) == 1 {
+		return KeyInput{Key: s}
+	}
+
+	var mods []string
+	var key string
+	for _, p := range parts {
+		lower := strings.ToLower(p)
+		if modifierNames[lower] && key == "" {
+			mods = append(mods, lower)
+		} else if key == "" {
+			key = p
+		} else {
+			key = p
+		}
+	}
+
+	if key == "" {
+		return KeyInput{Key: s}
+	}
+
+	return KeyInput{
+		Key:  key,
+		Mods: strings.Join(mods, "+"),
+	}
+}
+
 // w3cAliases maps W3C PascalCase key names to their libghostty snake_case
 // equivalents. These are the names most likely to be used by agents
 // following the W3C UI Events spec.
@@ -90,13 +136,22 @@ var w3cAliases = map[string]string{
 // normalizeKey converts W3C PascalCase key names (e.g. "Tab", "ArrowDown",
 // "KeyA") to the snake_case format expected by libghostty.ParseKey
 // (e.g. "tab", "arrow_down", "key_a"). If the name is already snake_case
-// it is returned unchanged.
+// it is returned unchanged. Single ASCII letters are prefixed with "key_"
+// (e.g. "F" → "key_f", "a" → "key_a").
 func normalizeKey(name string) string {
 	if strings.Contains(name, "_") {
 		return name
 	}
 	if mapped, ok := w3cAliases[name]; ok {
 		return mapped
+	}
+
+	// Single ASCII letter → key_<lower>
+	if len(name) == 1 {
+		r := rune(name[0])
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			return "key_" + strings.ToLower(name)
+		}
 	}
 
 	var b strings.Builder

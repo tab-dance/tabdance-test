@@ -36,6 +36,12 @@ func (s *Server) handleSendKeys(_ context.Context, req mcp.CallToolRequest) (*mc
 		}
 	}
 
+	for i, ki := range keyInputs {
+		if ki.Mods == "" {
+			keyInputs[i] = input.ParseKeyCombo(ki.Key)
+		}
+	}
+
 	mt.Lock()
 	defer mt.Unlock()
 

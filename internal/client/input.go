@@ -13,8 +13,8 @@ func (c *Client) Send(id, text string) error {
 	return nil
 }
 
-func (c *Client) Keys(id string, keys []string) error {
-	resp, err := c.Call("keys", map[string]any{"id": id, "keys": keys})
+func (c *Client) Keys(id string, keys []string, mods string) error {
+	resp, err := c.Call("keys", map[string]any{"id": id, "keys": keys, "mods": mods})
 	if err != nil {
 		return err
 	}
