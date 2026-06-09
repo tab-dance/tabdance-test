@@ -14,7 +14,6 @@ type viewResult struct {
 	CursorVisible bool   `json:"cursor_visible"`
 	CursorStyle   string `json:"cursor_style"`
 	ActiveScreen  string `json:"active_screen"`
-	OutputPath    string `json:"output_path,omitempty"`
 }
 
 type cursorResult struct {

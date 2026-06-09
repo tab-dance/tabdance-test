@@ -20,12 +20,11 @@ func (d *Daemon) handleView(req Request) Response {
 	if _, ok := req.Params["unwrap"]; !ok {
 		unwrap = true
 	}
-	outputPath := req.GetString("output_path")
 
 	mt.Lock()
 	defer mt.Unlock()
 
-	result, err := inspect.GetView(mt.Terminal, format, trim, unwrap, outputPath)
+	result, err := inspect.GetView(mt.Terminal, format, trim, unwrap)
 	if err != nil {
 		return ErrorResponse(err.Error())
 	}
