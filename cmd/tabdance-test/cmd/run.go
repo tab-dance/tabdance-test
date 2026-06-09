@@ -23,11 +23,35 @@ var runCmd = &cobra.Command{
 			env[k] = v
 		}
 
+		settings, err := tape.ParseSettings(args[0])
+		if err != nil {
+			return fmt.Errorf("parse tape settings: %w", err)
+		}
+
+		cols := runCols
+		rows := runRows
+		if settings.Width > 0 {
+			cols = settings.Width
+		}
+		if settings.Height > 0 {
+			rows = settings.Height
+		}
+
+		shellCommand := "sh"
+		if settings.Shell != "" {
+			shellCommand = tape.ShellToCommand(settings.Shell)
+		}
+
+		timeout := time.Duration(runTimeout * float64(time.Second))
+		if settings.WaitTimeout > 0 {
+			timeout = settings.WaitTimeout
+		}
+
 		mt, err := terminal.NewManagedTerminal("run_1", terminal.CreateConfig{
-			Cols:             uint16(runCols),
-			Rows:             uint16(runRows),
+			Cols:             uint16(cols),
+			Rows:             uint16(rows),
 			Scrollback:       10000,
-			Command:          "sh",
+			Command:          shellCommand,
 			Env:              env,
 			WorkingDirectory: runWorkingDir,
 		})
@@ -42,7 +66,10 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		executor := tape.NewTapeExecutor(mt, time.Duration(runTimeout*float64(time.Second)))
+		executor := tape.NewTapeExecutor(mt, timeout)
+		if settings.TypingSpeed > 0 {
+			executor.SetTypingSpeed(settings.TypingSpeed)
+		}
 		if err := executor.Execute(args[0]); err != nil {
 			return fmt.Errorf("execute tape: %w", err)
 		}

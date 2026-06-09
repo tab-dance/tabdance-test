@@ -178,7 +178,7 @@ internal/
   recording/
     asciicast.go              # AsciicastRecorder: asciicast v2 .cast files (output/input/marker/resize)
   tape/
-    executor.go               # TapeExecutor: VHS tape → go-libghostty ops, Terminal interface
+    executor.go               # TapeExecutor: VHS tape → go-libghostty ops, Terminal interface; ParseSettings, ShellToCommand
   golden/
     verify.go                 # VerifyOutput/UpdateGolden: go-difflib unified diff
   wait/
@@ -224,6 +224,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **VHS parser reuse**: Use `charmbracelet/vhs/lexer` + `vhs/parser` directly. API: `parser.New(lexer)` + `p.Parse()` (check `p.Errors()` separately).
 - **TapeExecutor Terminal interface**: Decoupled from `ManagedTerminal` via interface with `Lock/Unlock/WritePty/GetTerminal/GetKeyEncoder/GetMouseEncoder/Resize/AddMarker`.
 - **Golden file update mode**: Separate `update_golden` tool (not a flag on `verify_output`) to make accidental updates harder.
+- **`Set Shell` only works in `run` mode**: The `run` command pre-parses tape settings via `ParseSettings()` before creating the terminal, so `Set Shell` determines which shell binary runs. For the `tape` MCP tool and CLI `tape` command, the terminal already has a running child process, so `Set Shell` is a no-op at execution time.
 - **Scroll mouse actions**: `scroll_up`/`scroll_down` translated to button 4/5 press+release sequences.
 - **All go-libghostty getters return `(value, error)`**: e.g., `CursorX() (uint16, error)`, `Cols() (uint16, error)`.
 - **mcp-go CallToolRequest**: Use `req.GetString()`, `req.GetInt()`, `req.GetBool()`, `req.RequireString()`, `req.RequireInt()` — NOT `req.Params.Arguments["key"]`.
@@ -232,7 +233,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **CLI output format**: Human-readable by default, `--json` flag for machine-parseable output.
 - **Init-style subcommand registration**: Each subcommand file declares a package-level `*cobra.Command` var and registers it via `rootCmd.AddCommand()` in an `init()` function. No central list of subcommands in root.go.
 - **Carapace completion actions**: Defined in `pkg/actions/` (`ActionTerminalIDs`, `ActionKeyNames`). Command files import and use them directly.
-- **`run` command is daemon-free**: Creates terminal in-process, plays tape, verifies, exits. No socket needed. Always starts `sh` as the child process for tape input to work.
+- **`run` command is daemon-free**: Creates terminal in-process, plays tape, verifies, exits. No socket needed. Uses `ParseSettings()` to read `Set Shell`/`Set Width`/`Set Height`/`Set WaitTimeout`/`Set TypingSpeed` from the tape before creating the terminal. Defaults to `sh` if no `Set Shell` is specified.
 
 ## Gotchas
 

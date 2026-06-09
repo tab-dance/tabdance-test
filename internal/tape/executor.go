@@ -14,6 +14,14 @@ import (
 	libghostty "go.mitchellh.com/libghostty"
 )
 
+type TapeSettings struct {
+	Shell        string
+	Width        int
+	Height       int
+	TypingSpeed  time.Duration
+	WaitTimeout  time.Duration
+}
+
 type TapeExecutor struct {
 	terminal    Terminal
 	timeout     time.Duration
@@ -38,6 +46,75 @@ func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor {
 		timeout:     timeout,
 		typingSpeed: 50 * time.Millisecond,
 	}
+}
+
+func ParseSettings(tapePath string) (TapeSettings, error) {
+	data, err := os.ReadFile(tapePath)
+	if err != nil {
+		return TapeSettings{}, fmt.Errorf("read tape: %w", err)
+	}
+
+	l := lexer.New(string(data))
+	p := parser.New(l)
+	commands := p.Parse()
+
+	if errs := p.Errors(); len(errs) > 0 {
+		return TapeSettings{}, fmt.Errorf("parse tape: %s", errs[0].Msg)
+	}
+
+	var settings TapeSettings
+	for _, cmd := range commands {
+		if cmd.Type != token.SET {
+			continue
+		}
+		setting := cmd.Options
+		value := cmd.Args
+		switch setting {
+		case "Shell":
+			settings.Shell = value
+		case "Width":
+			settings.Width = parseCount(value, 0)
+		case "Height":
+			settings.Height = parseCount(value, 0)
+		case "TypingSpeed":
+			if d, err := parseTypingSpeed(value); err == nil {
+				settings.TypingSpeed = d
+			}
+		case "WaitTimeout":
+			if d, err := time.ParseDuration(value); err == nil {
+				settings.WaitTimeout = d
+			}
+		}
+	}
+
+	return settings, nil
+}
+
+func ShellToCommand(shell string) string {
+	switch shell {
+	case "bash":
+		return "bash --norc --noprofile"
+	case "zsh":
+		return "zsh --no-rcs"
+	case "fish":
+		return `fish -C "function fish_greeting; end"`
+	case "powershell", "pwsh":
+		return shell + " -NoProfile"
+	case "cmd":
+		return "cmd"
+	case "nu":
+		return "nu --no-config-file"
+	case "osh":
+		return "osh --norc"
+	case "xonsh":
+		return "xonsh --no-rc"
+	default:
+		return shell
+	}
+}
+
+func (e *TapeExecutor) SetTypingSpeed(d time.Duration) {
+	e.typingSpeed = d
 }
 
 func (e *TapeExecutor) Execute(tapePath string) error {
@@ -67,19 +144,19 @@ func (e *TapeExecutor) executeCommand(cmd parser.Command) error {
 	case token.TYPE:
 		return e.executeType(cmd)
 	case token.ENTER:
-		return e.executeKey(token.ENTER, cmd.Args, libghostty.KeyEnter)
+		return e.executeKeyWithSpeed(cmd, libghostty.KeyEnter)
 	case token.BACKSPACE:
-		return e.executeKey(token.BACKSPACE, cmd.Args, libghostty.KeyBackspace)
+		return e.executeKeyWithSpeed(cmd, libghostty.KeyBackspace)
 	case token.TAB:
-		return e.executeKey(token.TAB, cmd.Args, libghostty.KeyTab)
+		return e.executeKeyWithSpeed(cmd, libghostty.KeyTab)
 	case token.SPACE:
-		return e.executeKey(token.SPACE, cmd.Args, libghostty.KeySpace)
+		return e.executeKeyWithSpeed(cmd, libghostty.KeySpace)
 	case token.ESCAPE:
-		return e.sendKeys(libghostty.KeyEscape, 0, 1)
+		return e.sendKeys(libghostty.KeyEscape, 0, 1, 0)
 	case token.DELETE:
-		return e.sendKeys(libghostty.KeyDelete, 0, 1)
+		return e.sendKeys(libghostty.KeyDelete, 0, 1, 0)
 	case token.INSERT:
-		return e.sendKeys(libghostty.KeyInsert, 0, 1)
+		return e.sendKeys(libghostty.KeyInsert, 0, 1, 0)
 	case token.CTRL:
 		return e.executeCtrl(cmd)
 	case token.ALT:
@@ -87,17 +164,17 @@ func (e *TapeExecutor) executeCommand(cmd parser.Command) error {
 	case token.SHIFT:
 		return e.executeShift(cmd)
 	case token.UP:
-		return e.sendKeys(libghostty.KeyArrowUp, 0, parseCount(cmd.Args, 1))
+		return e.sendKeys(libghostty.KeyArrowUp, 0, parseCount(cmd.Args, 1), e.keyDelay(cmd))
 	case token.DOWN:
-		return e.sendKeys(libghostty.KeyArrowDown, 0, parseCount(cmd.Args, 1))
+		return e.sendKeys(libghostty.KeyArrowDown, 0, parseCount(cmd.Args, 1), e.keyDelay(cmd))
 	case token.LEFT:
-		return e.sendKeys(libghostty.KeyArrowLeft, 0, parseCount(cmd.Args, 1))
+		return e.sendKeys(libghostty.KeyArrowLeft, 0, parseCount(cmd.Args, 1), e.keyDelay(cmd))
 	case token.RIGHT:
-		return e.sendKeys(libghostty.KeyArrowRight, 0, parseCount(cmd.Args, 1))
+		return e.sendKeys(libghostty.KeyArrowRight, 0, parseCount(cmd.Args, 1), e.keyDelay(cmd))
 	case token.PAGE_UP:
-		return e.sendKeys(libghostty.KeyPageUp, 0, parseCount(cmd.Args, 1))
+		return e.sendKeys(libghostty.KeyPageUp, 0, parseCount(cmd.Args, 1), e.keyDelay(cmd))
 	case token.PAGE_DOWN:
-		return e.sendKeys(libghostty.KeyPageDown, 0, parseCount(cmd.Args, 1))
+		return e.sendKeys(libghostty.KeyPageDown, 0, parseCount(cmd.Args, 1), e.keyDelay(cmd))
 	case token.SLEEP:
 		return e.executeSleep(cmd)
 	case token.WAIT:
@@ -175,13 +252,26 @@ func (e *TapeExecutor) executeType(cmd parser.Command) error {
 	return nil
 }
 
-func (e *TapeExecutor) executeKey(cmdType, args string, key libghostty.Key) error {
-	count := parseCount(args, 1)
-	return e.sendKeys(key, 0, count)
+func (e *TapeExecutor) keyDelay(cmd parser.Command) time.Duration {
+	if cmd.Options != "" {
+		if d, err := parseTypingSpeed(cmd.Options); err == nil {
+			return d
+		}
+	}
+	return e.typingSpeed
 }
 
-func (e *TapeExecutor) sendKeys(key libghostty.Key, mods libghostty.Mods, count int) error {
-	for range count {
+func (e *TapeExecutor) executeKeyWithSpeed(cmd parser.Command, key libghostty.Key) error {
+	count := parseCount(cmd.Args, 1)
+	delay := e.keyDelay(cmd)
+	return e.sendKeys(key, 0, count, delay)
+}
+
+func (e *TapeExecutor) sendKeys(key libghostty.Key, mods libghostty.Mods, count int, delay time.Duration) error {
+	for i := range count {
+		if i > 0 && delay > 0 {
+			time.Sleep(delay)
+		}
 		e.terminal.Lock()
 		event, err := libghostty.NewKeyEvent()
 		if err != nil {
@@ -228,17 +318,17 @@ func (e *TapeExecutor) sendKeys(key libghostty.Key, mods libghostty.Mods, count 
 
 func (e *TapeExecutor) executeCtrl(cmd parser.Command) error {
 	key, mods := parseCtrlCombo(cmd.Args)
-	return e.sendKeys(key, mods, 1)
+	return e.sendKeys(key, mods, 1, 0)
 }
 
 func (e *TapeExecutor) executeAlt(cmd parser.Command) error {
 	key, mods := parseAltCombo(cmd.Args)
-	return e.sendKeys(key, mods, 1)
+	return e.sendKeys(key, mods, 1, 0)
 }
 
 func (e *TapeExecutor) executeShift(cmd parser.Command) error {
 	key, mods := parseShiftCombo(cmd.Args)
-	return e.sendKeys(key, mods, 1)
+	return e.sendKeys(key, mods, 1, 0)
 }
 
 func (e *TapeExecutor) executeSleep(cmd parser.Command) error {
@@ -257,14 +347,14 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 		pattern = parts[1]
 	}
 
+	timeout := e.timeout
 	if cmd.Options != "" {
 		if d, err := time.ParseDuration(cmd.Options); err == nil {
 			if d > 0 {
-				e.timeout = d
+				timeout = d
 			}
 		}
 	}
-	timeout := e.timeout
 
 	re, err := regexp.Compile(pattern)
 	if err != nil {
@@ -330,7 +420,11 @@ func (e *TapeExecutor) executeSet(cmd parser.Command) error {
 		if d, err := parseTypingSpeed(value); err == nil {
 			e.typingSpeed = d
 		}
-	case "Shell", "FontSize", "FontFamily", "Theme", "Framerate", "PlaybackSpeed", "WaitTimeout":
+	case "WaitTimeout":
+		if d, err := time.ParseDuration(value); err == nil {
+			e.timeout = d
+		}
+	case "Shell", "FontSize", "FontFamily", "Theme", "Framerate", "PlaybackSpeed":
 		return nil
 	}
 	return nil

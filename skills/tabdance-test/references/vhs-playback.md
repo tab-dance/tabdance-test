@@ -38,22 +38,27 @@ func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor
 | VHS Command | go-libghostty Operation |
 |-------------|------------------------|
 | `Type "text"` | `KeyEncoder.Encode()` for each character with `SetUTF8`, write to PTY |
-| `Enter[N]` | Encode `KeyEnter` N times |
-| `Backspace[N]` | Encode `KeyBackspace` N times |
-| `Tab[N]` | Encode `KeyTab` N times |
-| `Space[N]` | Encode `KeySpace` N times |
+| `Type@time "text"` | Same with per-character delay override |
+| `Enter[N]` / `Enter@time[N]` | Encode `KeyEnter` N times, with optional delay between repeats |
+| `Backspace[N]` / `Backspace@time[N]` | Encode `KeyBackspace` N times, with optional delay between repeats |
+| `Tab[N]` / `Tab@time[N]` | Encode `KeyTab` N times, with optional delay between repeats |
+| `Space[N]` / `Space@time[N]` | Encode `KeySpace` N times, with optional delay between repeats |
 | `Ctrl+X` | Encode key with `ModCtrl` |
 | `Alt+X` | Encode key with `ModAlt` |
 | `Shift+X` | Encode key with `ModShift` |
-| `Up/Down/Left/Right[N]` | Encode arrow key N times |
-| `PageUp/PageDown[N]` | Encode page key N times |
+| `Up/Down/Left/Right[N]` | Encode arrow key N times, with delay between repeats |
+| `PageUp/PageDown[N]` | Encode page key N times, with delay between repeats |
 | `Escape` | Encode `KeyEscape` |
 | `Delete/Insert` | Encode `KeyDelete`/`KeyInsert` |
 | `Sleep T` | `time.Sleep(parseDuration(T))` |
 | `Wait /pattern/` | Poll `Formatter.FormatString()` until regex matches |
+| `Wait+Screen /pattern/` | Match against full screen content |
+| `Wait+Line /pattern/` | Match against cursor's current line |
 | `Set Width/Height` | `term.Resize()` + PTY resize |
 | `Set TypingSpeed T` | Set per-character delay |
-| `Set FontSize/Shell/Theme/Framerate/PlaybackSpeed/WaitTimeout` | No-op (headless) |
+| `Set Shell` | `ShellToCommand()` maps shell name to command with no-RC flags; applied at terminal creation via `ParseSettings()` |
+| `Set WaitTimeout` | Updates default timeout for subsequent `Wait` commands |
+| `Set FontSize/FontFamily/Theme/Framerate/PlaybackSpeed` | No-op (headless) |
 | `Screenshot path` | `AddMarker("screenshot: path")` |
 | `Hide` | `AddMarker("hide")` |
 | `Show` | `AddMarker("show")` |
