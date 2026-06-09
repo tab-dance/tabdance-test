@@ -14,9 +14,14 @@ type ViewResult struct {
 	CursorVisible bool   `json:"cursor_visible"`
 	CursorStyle   string `json:"cursor_style"`
 	ActiveScreen  string `json:"active_screen"`
+	OutputPath    string `json:"output_path,omitempty"`
 }
 
-func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*ViewResult, error) {
+func GetView(term *libghostty.Terminal, format string, trim, unwrap bool, outputPath string) (*ViewResult, error) {
+	if isFreezeFormat(format) {
+		return getFreezeView(term, format, trim, unwrap, outputPath)
+	}
+
 	var fmtFormat libghostty.FormatterFormat
 	switch format {
 	case "plain":
@@ -44,6 +49,39 @@ func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*View
 		return nil, fmt.Errorf("format: %w", err)
 	}
 
+	return newViewResult(term, content, ""), nil
+}
+
+func getFreezeView(term *libghostty.Terminal, format string, trim, unwrap bool, outputPath string) (*ViewResult, error) {
+	f, err := libghostty.NewFormatter(term,
+		libghostty.WithFormatterFormat(libghostty.FormatterFormatVT),
+		libghostty.WithFormatterTrim(trim),
+		libghostty.WithFormatterUnwrap(unwrap),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create formatter: %w", err)
+	}
+	defer f.Close()
+
+	vtContent, err := f.FormatString()
+	if err != nil {
+		return nil, fmt.Errorf("format: %w", err)
+	}
+
+	content, err := renderFreeze(vtContent, format, outputPath)
+	if err != nil {
+		return nil, err
+	}
+
+	result := newViewResult(term, content, "")
+	if format != "svg" {
+		result.OutputPath = content
+		result.Content = ""
+	}
+	return result, nil
+}
+
+func newViewResult(term *libghostty.Terminal, content, outputPath string) *ViewResult {
 	cursorX, _ := term.CursorX()
 	cursorY, _ := term.CursorY()
 	cursorVisible, _ := term.CursorVisible()
@@ -71,7 +109,8 @@ func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*View
 		CursorVisible: cursorVisible,
 		CursorStyle:   styleStr,
 		ActiveScreen:   screenStr,
-	}, nil
+		OutputPath:    outputPath,
+	}
 }
 
 func (v *ViewResult) ToJSON() string {

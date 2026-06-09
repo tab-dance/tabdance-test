@@ -71,11 +71,12 @@ func (s *Server) registerTools() {
 	), s.handleSendPaste)
 
 	s.mcp.AddTool(mcp.NewTool("get_view",
-		mcp.WithDescription("Get the current terminal view as plain text, VT, or HTML"),
+		mcp.WithDescription("Get the current terminal view as plain text, VT, HTML, or image (svg, png via freeze)"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, png (default: plain)")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
+		mcp.WithString("output_path", mcp.Description("Output file path for image formats (svg, png). Defaults to temp file.")),
 	), s.handleGetView)
 
 	s.mcp.AddTool(mcp.NewTool("get_cell",

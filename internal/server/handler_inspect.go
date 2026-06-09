@@ -21,11 +21,12 @@ func (s *Server) handleGetView(_ context.Context, req mcp.CallToolRequest) (*mcp
 	format := req.GetString("format", "plain")
 	trim := req.GetBool("trim", true)
 	unwrap := req.GetBool("unwrap", true)
+	outputPath := req.GetString("output_path", "")
 
 	mt.Lock()
 	defer mt.Unlock()
 
-	result, err := inspect.GetView(mt.Terminal, format, trim, unwrap)
+	result, err := inspect.GetView(mt.Terminal, format, trim, unwrap, outputPath)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

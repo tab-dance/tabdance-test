@@ -5,13 +5,17 @@ import (
 	"fmt"
 )
 
-func (c *Client) View(id, format string, trim, unwrap bool) (*viewResult, error) {
-	resp, err := c.Call("view", map[string]any{
+func (c *Client) View(id, format string, trim, unwrap bool, outputPath string) (*viewResult, error) {
+	params := map[string]any{
 		"id":     id,
 		"format": format,
 		"trim":   trim,
 		"unwrap": unwrap,
-	})
+	}
+	if outputPath != "" {
+		params["output_path"] = outputPath
+	}
+	resp, err := c.Call("view", params)
 	if err != nil {
 		return nil, err
 	}
