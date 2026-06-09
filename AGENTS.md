@@ -116,12 +116,10 @@ tabdance-test
 
 ```
 cmd/tabdance-test/
-  main.go                    # Entrypoint: cobra root command, --daemon flag
-
-internal/
-  cli/
-    root.go                  # Root command + cobra setup + carapace integration
-    mcp.go                   # `mcp` subcommand
+  main.go                    # Entrypoint: --daemon flag
+  cmd/
+    root.go                  # Root command var + carapace integration
+    mcp.go                   # `mcp` subcommand (init-style self-registration)
     exec.go                  # `exec` subcommand
     ls.go                    # `ls` subcommand
     inspect.go               # `inspect` subcommand
@@ -145,10 +143,14 @@ internal/
     record.go                # `record` subcommand
     stop.go                  # `stop` subcommand
     marker.go                # `marker` subcommand
-    run.go                   # `run` subcommand (daemon-free)
-    run_funcs.go              # Run functions for all CLI commands (client calls)
-    run_inprocess.go          # In-process runner for `run` command
-    completion.go             # Carapace completion helpers (terminal IDs, key names)
+    run.go                   # `run` subcommand (daemon-free, in-process runner)
+    client.go                # newClient() and parseKeyValue() helpers
+
+pkg/
+  actions/
+    completion.go             # Public carapace completion actions (ActionTerminalIDs, ActionKeyNames)
+
+internal/
   daemon/
     protocol.go              # JSON-RPC protocol types (Request, Response)
     daemon.go                # Daemon: socket listener, accept loop, idle timeout, auto-start
@@ -228,6 +230,8 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Output subscriber pattern**: `ManagedTerminal` broadcasts PTY output to subscribers via channels. `Subscribe()` returns an `outputSubscriber` with a `Channel()` method. Used by `attach` command to stream output without competing with `ptyReadLoop`.
 - **Daemon protocol**: JSON-RPC over Unix socket. Each request is one JSON line, each response is one JSON line. `attach` is special: after the initial request, the daemon streams raw PTY output bytes to the client connection.
 - **CLI output format**: Human-readable by default, `--json` flag for machine-parseable output.
+- **Init-style subcommand registration**: Each subcommand file declares a package-level `*cobra.Command` var and registers it via `rootCmd.AddCommand()` in an `init()` function. No central list of subcommands in root.go.
+- **Carapace completion actions**: Defined in `pkg/actions/` (`ActionTerminalIDs`, `ActionKeyNames`). Command files import and use them directly.
 - **`run` command is daemon-free**: Creates terminal in-process, plays tape, verifies, exits. No socket needed. Always starts `sh` as the child process for tape input to work.
 
 ## Gotchas

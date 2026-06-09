@@ -1,20 +1,29 @@
-package cli
+package actions
 
 import (
 	"github.com/carapace-sh/carapace"
+	"github.com/tab-dance/tabdance-test/internal/client"
 )
 
-func actionTerminalIDs() carapace.Action {
+func ActionTerminalIDs() carapace.Action {
 	return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-		ids, err := listTerminalIDs()
+		if !client.IsDaemonRunning() {
+			return carapace.ActionValues()
+		}
+		cl := client.New()
+		infos, err := cl.Ls()
 		if err != nil {
 			return carapace.ActionValues()
+		}
+		ids := make([]string, len(infos))
+		for i, info := range infos {
+			ids[i] = info.ID
 		}
 		return carapace.ActionValues(ids...)
 	})
 }
 
-func actionKeyNames() carapace.Action {
+func ActionKeyNames() carapace.Action {
 	return carapace.ActionValues(
 		"Tab", "Enter", "Escape", "Backspace", "Delete", "Insert",
 		"Home", "End", "PageUp", "PageDown", "Space",

@@ -4,12 +4,12 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tab-dance/tabdance-test/internal/cli"
+	"github.com/tab-dance/tabdance-test/cmd/tabdance-test/cmd"
 	"github.com/tab-dance/tabdance-test/internal/daemon"
 )
 
 func main() {
-	rootCmd := cli.NewRootCmd()
+	rootCmd := cmd.NewRootCmd()
 
 	rootCmd.Flags().Bool("daemon", false, "run as daemon (internal)")
 	rootCmd.Flags().MarkHidden("daemon")
