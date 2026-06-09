@@ -154,42 +154,66 @@ internal/
   daemon/
     protocol.go              # JSON-RPC protocol types (Request, Response)
     daemon.go                # Daemon: socket listener, accept loop, idle timeout, auto-start
-    handler.go                # Request handler: dispatches to TerminalManager ops
+    handler_terminal.go      # Daemon handlers: exec, ls, inspect, kill, rm
+    handler_input.go         # Daemon handlers: send, keys, mouse, paste, focus
+    handler_inspect.go       # Daemon handlers: view, cursor, size, cell
+    handler_tape.go          # Daemon handlers: resize, tape, wait
+    handler_golden.go        # Daemon handlers: verify, snapshot
+    handler_recording.go     # Daemon handlers: record, stop, marker, attach
   client/
-    client.go                # Daemon client: connect, send request, receive response
-    daemon.go                 # Auto-start logic: EnsureDaemon, IsDaemonRunning
-    attach.go                 # Streaming attach client
+    client.go                # Client struct, connect, Call
+    daemon.go                # Auto-start logic: EnsureDaemon, IsDaemonRunning
+    attach.go                # Streaming attach client
+    terminal.go              # Terminal methods: Exec, Ls, Inspect, Kill, Rm
+    inspect.go               # Inspect methods: View, Cursor, Size, Cell
+    input.go                 # Input methods: Send, Keys, Mouse, Paste, Focus, Resize
+    tape.go                  # Tape/wait methods: Tape, Wait
+    golden.go                # Golden methods: Verify, Snapshot
+    recording.go             # Recording methods: Record, Stop, Marker
+    types.go                 # Result types for JSON deserialization
   server/
-    server.go                # MCP server setup, tool registration, all 20 tool handlers
-    server_test.go            # Integration tests
+    server.go                # Server struct, New, Run
+    tools.go                 # Tool registration (registerTools)
+    handler_terminal.go      # MCP handlers: create, list, close, reset, resize
+    handler_input.go         # MCP handlers: send_keys, send_text, send_mouse, send_focus, send_paste
+    handler_inspect.go       # MCP handlers: get_view, get_cell, get_cursor, get_size
+    handler_recording.go     # MCP handlers: start_recording, stop_recording, add_marker
+    handler_tape.go          # MCP handlers: play_tape
+    handler_golden.go        # MCP handlers: verify_output, update_golden
+    handler_wait.go          # MCP handlers: wait_for
+    server_test.go           # Integration tests
   terminal/
     manager.go               # TerminalManager: Create/Get/List/Delete/CloseAll, auto-increment IDs
-    managed.go                # ManagedTerminal: terminal + PTY lifecycle, encoders, recorder, mutex, subscribers
+    managed.go               # ManagedTerminal: terminal + PTY lifecycle, encoders, recorder, mutex
+    subscriber.go            # outputSubscriber: broadcast channel for PTY output
   input/
     keys.go                  # SendKeys: ParseKey/ParseMods, Kitty keyboard press+release
-    mouse.go                  # SendMouse: ParseMouseButton, scroll_up/scroll_down via button 4/5
-    focus.go                  # SendFocus: ParseFocusEvent + FocusEncode
-    paste.go                  # SendPaste: PasteEncode with bracketed-paste mode
+    mouse.go                 # SendMouse: ParseMouseButton, scroll_up/scroll_down via button 4/5
+    focus.go                 # SendFocus: ParseFocusEvent + FocusEncode
+    paste.go                 # SendPaste: PasteEncode with bracketed-paste mode
   inspect/
-    view.go                   # GetView: Formatter (plain/vt/html, trim, unwrap) + cursor + active screen
-    cell.go                   # GetCell: GridRef (codepoint, graphemes, wide, bold, italic, fg/bg, hyperlink)
-    cursor.go                 # GetCursor: x, y, visible, pending_wrap, style
-    size.go                   # GetSize: cols, rows, width_px, height_px
+    view.go                  # GetView: Formatter (plain/vt/html, trim, unwrap) + cursor + active screen
+    cell.go                  # GetCell: GridRef (codepoint, graphemes, wide, bold, italic, fg/bg, hyperlink)
+    cursor.go                # GetCursor: x, y, visible, pending_wrap, style
+    size.go                  # GetSize: cols, rows, width_px, height_px
   recording/
-    asciicast.go              # AsciicastRecorder: asciicast v2 .cast files (output/input/marker/resize)
+    asciicast.go             # AsciicastRecorder: asciicast v2 .cast files (output/input/marker/resize)
   tape/
-    executor.go               # TapeExecutor: VHS tape → go-libghostty ops, Terminal interface; ParseSettings, ShellToCommand
+    executor.go              # TapeExecutor struct, Execute, executeCommand, executeSet
+    execute.go               # Tape execution: executeType, sendKeys, executeCtrl/Alt/Shift, executeSleep, executeWait
+    parse.go                 # ParseSettings, ShellToCommand, parseCount, parseDuration, parseTypingSpeed, parse*Combo
+    executor_test.go         # Tests
   golden/
-    verify.go                 # VerifyOutput/UpdateGolden: go-difflib unified diff
+    verify.go                # VerifyOutput/UpdateGolden: go-difflib unified diff
   wait/
-    wait.go                   # WaitFor: regex polling at 50ms, screen/line scope
+    wait.go                  # WaitFor: regex polling at 50ms, screen/line scope
 
 skills/                       # Crush skill references (ghostty, asciinema, vhs)
 ```
 
 ## MCP Tool Summary
 
-20 tools registered in `server.go:registerTools()`:
+20 tools registered in `tools.go:registerTools()`:
 
 || Tool | Input | Output |
 ||------|-------|--------|

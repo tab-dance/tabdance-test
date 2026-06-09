@@ -14,14 +14,6 @@ import (
 	"github.com/tab-dance/tabdance-test/internal/recording"
 )
 
-type outputSubscriber struct {
-	ch chan []byte
-}
-
-func (s *outputSubscriber) Channel() <-chan []byte {
-	return s.ch
-}
-
 type ManagedTerminal struct {
 	ID           string
 	Terminal     *libghostty.Terminal
