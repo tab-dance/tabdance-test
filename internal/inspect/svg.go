@@ -18,6 +18,7 @@ type svgRenderer struct {
 	reverseColors bool
 	colors        *libghostty.RenderStateColors
 	buf           strings.Builder
+	intCoords     bool
 }
 
 // cellInfo holds all data needed for a cell tooltip and golden file verification.
@@ -68,46 +69,37 @@ func RenderSVG(term *libghostty.Terminal, trim, unwrap bool) (string, error) {
 		cellWidth:     cellWidth,
 		cellHeight:    cellHeight,
 		reverseColors: reverseColors,
+		intCoords:     cellWidth == float64(int(cellWidth)) && cellHeight == float64(int(cellHeight)),
 	}
 
 	r.buildSVG(trim, unwrap)
 	return r.buf.String(), nil
 }
 
+// coord formats a float coordinate, using integer format when possible.
+func (r *svgRenderer) coord(v float64) string {
+	if r.intCoords {
+		return fmt.Sprintf("%d", int(v))
+	}
+	return fmt.Sprintf("%.2f", v)
+}
+
 func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 	width := float64(r.cols) * r.cellWidth
 	height := float64(r.rows) * r.cellHeight
 
-	// Escape for use inside XML attribute JavaScript object literal.
-	// Use &quot; for quotes (valid XML entity), and \ for backslash.
-	esc := func(s string) string {
-		s = strings.ReplaceAll(s, `\`, `\\`)
-		s = strings.ReplaceAll(s, `"`, `&quot;`)
-		s = strings.ReplaceAll(s, "'", `\'`)
-		s = strings.ReplaceAll(s, "\n", `\n`)
-		s = strings.ReplaceAll(s, "\r", `\r`)
-		s = strings.ReplaceAll(s, "\t", `\t`)
-		return s
-	}
-
-	r.buf.WriteString(`<svg xmlns="http://www.w3.org/2000/svg" width="`)
-	r.buf.WriteString(fmt.Sprintf("%.0f", width))
-	r.buf.WriteString(`" height="`)
-	r.buf.WriteString(fmt.Sprintf("%.0f", height))
-	r.buf.WriteString(`" viewBox="0 0 `)
-	r.buf.WriteString(fmt.Sprintf("%.0f", width))
-	r.buf.WriteString(` `)
-	r.buf.WriteString(fmt.Sprintf("%.0f", height))
-	r.buf.WriteString(`">`)
+	fmt.Fprintf(&r.buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="0 0 %s %s" onmouseover="_sh(evt)" onmouseout="hideTooltip()">`,
+		r.coord(width), r.coord(height), r.coord(width), r.coord(height))
 
 	// Embedded styles with JetBrains Mono
-	r.buf.WriteString(`<style>
+	fmt.Fprintf(&r.buf, `<style>
 		@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;display=swap');
-		text { font-family: 'JetBrains Mono', monospace; font-size: `)
-	r.buf.WriteString(fmt.Sprintf("%.0fpx", r.cellHeight*0.8))
-	r.buf.WriteString(`; dominant-baseline: middle; }
-		.cell-rect { cursor: crosshair; }
-	</style>`)
+		text{font-family:'JetBrains Mono',monospace;font-size:%spx;dominant-baseline:middle}
+		.c{cursor:crosshair}
+		.b{font-weight:bold}
+		.i{font-style:italic}
+		.s{filter:invert(100%%)}
+	</style>`, r.coord(r.cellHeight*0.8))
 
 	// Cursor, selection, and color data
 	cursorX, _ := r.term.CursorX()
@@ -137,11 +129,12 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 	}
 
 	// Background
-	r.buf.WriteString(`<rect width="100%" height="100%" fill="`)
-	r.buf.WriteString(r.bgFill("default"))
-	r.buf.WriteString(`"/>`)
+	defaultBg := r.bgFill("default")
+	fmt.Fprintf(&r.buf, `<rect width="100%%" height="100%%" fill="%s"/>`, defaultBg)
 
-	
+	// Define a reusable default-bg rect for empty cells
+	fmt.Fprintf(&r.buf, `<defs><rect id="d" width="%s" height="%s" fill="%s"/></defs>`,
+		r.coord(r.cellWidth), r.coord(r.cellHeight), defaultBg)
 
 	for y := uint32(0); y < uint32(r.rows); y++ {
 		for x := uint16(0); x < r.cols; x++ {
@@ -166,147 +159,80 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 				cellW = r.cellWidth * 2
 			}
 
-			// Escape text for SVG tspan content
-			textEscaped := r.escapeXML(ci.Text)
-			fgEscaped := r.fgColor(ci.FgColor)
-			bgFillEsc := r.bgFill(ci.BgColor)
-
-			// Build tooltip data as JSON
-			tooltip := map[string]interface{}{
-				"x":          ci.X,
-				"y":          ci.Y,
-				"text":       ci.Text,
-				"codepoint":  ci.Codepoint,
-				"wide":       ci.Wide,
-				"bold":       ci.Bold,
-				"italic":     ci.Italic,
-				"fg":         ci.FgColor,
-				"bg":         ci.BgColor,
-				"inverse":    ci.Inverse,
-				"hyperlink":  ci.Hyperlink,
-			}
-			tooltipJSON, _ := json.Marshal(tooltip)
-			tooltipEsc := esc(string(tooltipJSON))
-
-			// Hover group
+			// Skip empty cells (default bg, no text, not selected, not cursor)
 			isSelected := false
 			if sel != nil {
 				if selected, _ := r.term.SelectionContains(sel, point); selected {
 					isSelected = true
 				}
 			}
-			var invertStyle string
-			if isSelected {
-				invertStyle = ` style="filter: invert(100%)"`
-			}
-			r.buf.WriteString(`<g class="cell-rect" onmouseover="showTooltip(evt,`)
-			r.buf.WriteString(tooltipEsc)
-			r.buf.WriteString(`)" onmouseout="hideTooltip()"`)
-			r.buf.WriteString(invertStyle)
-			r.buf.WriteString(`>`)
+			isCursor := cursorVisible && ci.X == cursorX && int(ci.Y) == int(cursorY)
+			isEmpty := ci.Text == "" && ci.BgColor == "default" && !isSelected && !isCursor
 
-			// Background rect
-			r.buf.WriteString(`<rect x="`)
-			r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-			r.buf.WriteString(`" y="`)
-			r.buf.WriteString(fmt.Sprintf("%.2f", cy))
-			r.buf.WriteString(`" width="`)
-			r.buf.WriteString(fmt.Sprintf("%.2f", cellW))
-			r.buf.WriteString(`" height="`)
-			r.buf.WriteString(fmt.Sprintf("%.2f", r.cellHeight))
-			r.buf.WriteString(`" fill="`)
-			r.buf.WriteString(bgFillEsc)
-			r.buf.WriteString(`"/>`)
+			if isEmpty {
+				continue
+			}
+
+			textEscaped := r.escapeXML(ci.Text)
+			fgEscaped := r.fgColor(ci.FgColor)
+			bgFillEsc := r.bgFill(ci.BgColor)
+
+			// Hover group — tooltip data looked up from embedded grid by (x,y)
+			gCls := "c"
+			if isSelected {
+				gCls = "c s"
+			}
+			fmt.Fprintf(&r.buf, `<g class="%s" data-x="%d" data-y="%d">`,
+				gCls, ci.X, ci.Y)
+
+			// Background rect — use <use> for default bg, full <rect> for custom bg
+			if ci.BgColor == "default" {
+				fmt.Fprintf(&r.buf, `<use href="#d" x="%s" y="%s"/>`, r.coord(cx), r.coord(cy))
+			} else {
+				fmt.Fprintf(&r.buf, `<rect x="%s" y="%s" width="%s" height="%s" fill="%s"/>`,
+					r.coord(cx), r.coord(cy), r.coord(cellW), r.coord(r.cellHeight), bgFillEsc)
+			}
 
 			// Text (skip empty cells)
 			if ci.Text != "" {
-				r.buf.WriteString(`<text x="`)
-				r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-				r.buf.WriteString(`" y="`)
-				r.buf.WriteString(fmt.Sprintf("%.2f", cy+r.cellHeight/2))
-				r.buf.WriteString(`" fill="`)
-				r.buf.WriteString(fgEscaped)
-				r.buf.WriteString(`"`)
-				if ci.Bold {
-					r.buf.WriteString(` font-weight="bold"`)
+				var cls string
+				if ci.Bold && ci.Italic {
+					cls = ` class="b i"`
+				} else if ci.Bold {
+					cls = ` class="b"`
+				} else if ci.Italic {
+					cls = ` class="i"`
 				}
-				if ci.Italic {
-					r.buf.WriteString(` font-style="italic"`)
-				}
-				r.buf.WriteString(`>`)
-				r.buf.WriteString(`<tspan x="`)
-				r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-				r.buf.WriteString(`">`)
-				r.buf.WriteString(textEscaped)
-				r.buf.WriteString(`</tspan></text>`)
+				fmt.Fprintf(&r.buf, `<text x="%s" y="%s" fill="%s"%s`, r.coord(cx), r.coord(cy+r.cellHeight/2), fgEscaped, cls)
+				fmt.Fprintf(&r.buf, `><tspan x="%s">%s</tspan></text>`, r.coord(cx), textEscaped)
 			}
 
 			// Cursor overlay
-			if cursorVisible && ci.X == cursorX && int(ci.Y) == int(cursorY) {
-				cursorFill := "#ffffff"
+			if isCursor {
+				cursorFill := "#fff"
 				cursorOpacity := "0.9"
-				if cursorStyle == "underline" {
-					r.buf.WriteString(`<rect x="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-					r.buf.WriteString(`" y="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", cy+r.cellHeight-2))
-					r.buf.WriteString(`" width="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", r.cellWidth))
-					r.buf.WriteString(`" height="2" fill="`)
-					r.buf.WriteString(cursorFill)
-					r.buf.WriteString(`" opacity="`)
-					r.buf.WriteString(cursorOpacity)
-					r.buf.WriteString(`"/>`)
-				} else if cursorStyle == "block_hollow" {
-					r.buf.WriteString(`<rect x="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-					r.buf.WriteString(`" y="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", cy))
-					r.buf.WriteString(`" width="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", r.cellWidth))
-					r.buf.WriteString(`" height="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", r.cellHeight))
-					r.buf.WriteString(`" fill="none" stroke="`)
-					r.buf.WriteString(cursorFill)
-					r.buf.WriteString(`" stroke-width="1" opacity="`)
-					r.buf.WriteString(cursorOpacity)
-					r.buf.WriteString(`"/>`)
-				} else {
-					// block (default) - fill with reversed colors
-					r.buf.WriteString(`<rect x="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-					r.buf.WriteString(`" y="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", cy))
-					r.buf.WriteString(`" width="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", r.cellWidth))
-					r.buf.WriteString(`" height="`)
-					r.buf.WriteString(fmt.Sprintf("%.2f", r.cellHeight))
-					r.buf.WriteString(`" fill="`)
-					r.buf.WriteString(fgEscaped)
-					r.buf.WriteString(`" opacity="`)
-					r.buf.WriteString(cursorOpacity)
-					r.buf.WriteString(`"/>`)
-					// Draw text on top with bg color for visibility
+				switch cursorStyle {
+				case "underline":
+					fmt.Fprintf(&r.buf, `<rect x="%s" y="%s" width="%s" height="2" fill="%s" opacity="%s"/>`,
+						r.coord(cx), r.coord(cy+r.cellHeight-2), r.coord(r.cellWidth), cursorFill, cursorOpacity)
+				case "block_hollow":
+					fmt.Fprintf(&r.buf, `<rect x="%s" y="%s" width="%s" height="%s" fill="none" stroke="%s" stroke-width="1" opacity="%s"/>`,
+						r.coord(cx), r.coord(cy), r.coord(r.cellWidth), r.coord(r.cellHeight), cursorFill, cursorOpacity)
+				default:
+					// block — fill with fg color, redraw text with bg color
+					fmt.Fprintf(&r.buf, `<rect x="%s" y="%s" width="%s" height="%s" fill="%s" opacity="%s"/>`,
+						r.coord(cx), r.coord(cy), r.coord(r.cellWidth), r.coord(r.cellHeight), fgEscaped, cursorOpacity)
 					if ci.Text != "" {
-						r.buf.WriteString(`<text x="`)
-						r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-						r.buf.WriteString(`" y="`)
-						r.buf.WriteString(fmt.Sprintf("%.2f", cy+r.cellHeight/2))
-						r.buf.WriteString(`" fill="`)
-						r.buf.WriteString(bgFillEsc)
-						r.buf.WriteString(`"`)
-						if ci.Bold {
-							r.buf.WriteString(` font-weight="bold"`)
+						var cls string
+						if ci.Bold && ci.Italic {
+							cls = ` class="b i"`
+						} else if ci.Bold {
+							cls = ` class="b"`
+						} else if ci.Italic {
+							cls = ` class="i"`
 						}
-						if ci.Italic {
-							r.buf.WriteString(` font-style="italic"`)
-						}
-						r.buf.WriteString(`>`)
-						r.buf.WriteString(`<tspan x="`)
-						r.buf.WriteString(fmt.Sprintf("%.2f", cx))
-						r.buf.WriteString(`">`)
-						r.buf.WriteString(textEscaped)
-						r.buf.WriteString(`</tspan></text>`)
+						fmt.Fprintf(&r.buf, `<text x="%s" y="%s" fill="%s"%s`, r.coord(cx), r.coord(cy+r.cellHeight/2), bgFillEsc, cls)
+						fmt.Fprintf(&r.buf, `><tspan x="%s">%s</tspan></text>`, r.coord(cx), textEscaped)
 					}
 				}
 			}
@@ -318,94 +244,69 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 	// Tooltip overlay div (foreignObject for HTML tooltip)
 	r.buf.WriteString(`<foreignObject x="0" y="0" width="100%" height="100%" style="pointer-events:none;">
 	<style>
-		#cell-tooltip {
-			position: fixed;
-			z-index: 99999;
-			background: #1e1e1e;
-			color: #d4d4d4;
-			border: 1px solid #555;
-			border-radius: 4px;
-			padding: 8px 12px;
-			font-family: 'JetBrains Mono', monospace;
-			font-size: 12px;
-			max-width: 300px;
-			box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-			display: none;
-			pointer-events: none;
-			line-height: 1.6;
-		}
-		#cell-tooltip .row { display: flex; gap: 8px; }
-		#cell-tooltip .key { color: #6a9955; min-width: 80px; }
-		#cell-tooltip .val { color: #ce9178; word-break: break-all; }
+		#ct{position:fixed;z-index:99999;background:#1e1e1e;color:#d4d4d4;border:1px solid #555;border-radius:4px;padding:8px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;max-width:300px;box-shadow:0 4px 12px rgba(0,0,0,.4);display:none;pointer-events:none;line-height:1.6}
+		#ct .r{display:flex;gap:8px}
+		#ct .k{color:#6a9955;min-width:80px}
+		#ct .v{color:#ce9178;word-break:break-all}
 	</style>
 	<div xmlns="http://www.w3.org/1999/xhtml">
-		<div id="cell-tooltip">
-			<div class="row"><span class="key">Position:</span><span class="val" id="tt-pos"></span></div>
-			<div class="row"><span class="key">Text:</span><span class="val" id="tt-text"></span></div>
-			<div class="row"><span class="key">Codepoint:</span><span class="val" id="tt-cp"></span></div>
-			<div class="row"><span class="key">Wide:</span><span class="val" id="tt-wide"></span></div>
-			<div class="row"><span class="key">Bold:</span><span class="val" id="tt-bold"></span></div>
-			<div class="row"><span class="key">Italic:</span><span class="val" id="tt-italic"></span></div>
-			<div class="row"><span class="key">FG:</span><span class="val" id="tt-fg"></span></div>
-			<div class="row"><span class="key">BG:</span><span class="val" id="tt-bg"></span></div>
-			<div class="row"><span class="key">Inverse:</span><span class="val" id="tt-inverse"></span></div>
-			<div class="row" id="tt-hl-row" style="display:none"><span class="key">Link:</span><span class="val" id="tt-hl"></span></div>
+		<div id="ct">
+			<div class="r"><span class="k">Position:</span><span class="v" id="tp"></span></div>
+			<div class="r"><span class="k">Text:</span><span class="v" id="tt"></span></div>
+			<div class="r"><span class="k">Codepoint:</span><span class="v" id="tc"></span></div>
+			<div class="r"><span class="k">Wide:</span><span class="v" id="tw"></span></div>
+			<div class="r"><span class="k">Bold:</span><span class="v" id="tb"></span></div>
+			<div class="r"><span class="k">Italic:</span><span class="v" id="ti"></span></div>
+			<div class="r"><span class="k">FG:</span><span class="v" id="tf"></span></div>
+			<div class="r"><span class="k">BG:</span><span class="v" id="tg"></span></div>
+			<div class="r"><span class="k">Inverse:</span><span class="v" id="tv"></span></div>
+			<div class="r" id="th" style="display:none"><span class="k">Link:</span><span class="v" id="tl"></span></div>
 		</div>
 	</div>
 	</foreignObject>`)
 
-	// JavaScript for tooltip
+	// JavaScript for tooltip — event delegation from SVG root
 	r.buf.WriteString(`<script type="text/javascript"><![CDATA[
-	var tooltip = document.getElementById('cell-tooltip');
-	function showTooltip(evt, data) {
-		var svg = evt.target.closest('svg');
-		var rect = svg.getBoundingClientRect();
-		var tw = tooltip.offsetWidth || 300;
-		var th = tooltip.offsetHeight || 200;
-		// Position based on cell location: opposite corner
-		var x = data.x * 8;
-		var y = data.y * 16;
-		// If in top half, show below; if in bottom half, show above
-		if (y < rect.height / 2) y += 20;
-		else y -= th + 20;
-		// If in left half, show to the right; if in right half, show to the left
-		if (x < rect.width / 2) x += 20;
-		else x -= tw + 20;
-		// Clamp to SVG bounds
-		x = Math.max(10, Math.min(x, rect.width - tw - 10));
-		y = Math.max(10, Math.min(y, rect.height - th - 10));
-		tooltip.style.display = 'block';
-		tooltip.style.left = x + 'px';
-		tooltip.style.top = y + 'px';
-		document.getElementById('tt-pos').textContent = data.x + ',' + data.y;
-		document.getElementById('tt-text').textContent = JSON.stringify(data.text);
-		document.getElementById('tt-cp').textContent = data.codepoint + ' (0x' + data.codepoint.toString(16).toUpperCase() + ')';
-		document.getElementById('tt-wide').textContent = String(data.wide);
-		document.getElementById('tt-bold').textContent = String(data.bold);
-		document.getElementById('tt-italic').textContent = String(data.italic);
-		document.getElementById('tt-fg').textContent = data.fg;
-		document.getElementById('tt-bg').textContent = data.bg;
-		document.getElementById('tt-inverse').textContent = String(data.inverse);
-		if (data.hyperlink) {
-			document.getElementById('tt-hl-row').style.display = 'flex';
-			document.getElementById('tt-hl').textContent = data.hyperlink;
-		} else {
-			document.getElementById('tt-hl-row').style.display = 'none';
-		}
+	var _g=null;
+	function _gd(){if(!_g){var e=document.getElementById('cell-grid');if(e){_g=JSON.parse(e.textContent)}}return _g}
+	var _t=document.getElementById('ct');
+	function _sh(evt){
+		var el=evt.target.closest('[data-x]');if(!el)return;
+		var x=+el.getAttribute('data-x'),y=+el.getAttribute('data-y');
+		var d=_gd();if(!d)return;
+		var c=d.cells[y+','+x]||{text:'',codepoint:0,fg:'',bg:''};
+		var svg=evt.target.closest('svg');
+		var rect=svg.getBoundingClientRect();
+		var tw=_t.offsetWidth||300;
+		var th=_t.offsetHeight||200;
+		var px=x*8;var py=y*16;
+		if(py<rect.height/2)py+=20;else py-=th+20;
+		if(px<rect.width/2)px+=20;else px-=tw+20;
+		px=Math.max(10,Math.min(px,rect.width-tw-10));
+		py=Math.max(10,Math.min(py,rect.height-th-10));
+		_t.style.display='block';
+		_t.style.left=px+'px';
+		_t.style.top=py+'px';
+		document.getElementById('tp').textContent=x+','+y;
+		document.getElementById('tt').textContent=JSON.stringify(c.text||'');
+		document.getElementById('tc').textContent=(c.codepoint||0)+' (0x'+(c.codepoint||0).toString(16).toUpperCase()+')';
+		document.getElementById('tw').textContent=String(!!c.wide);
+		document.getElementById('tb').textContent=String(!!c.bold);
+		document.getElementById('ti').textContent=String(!!c.italic);
+		document.getElementById('tf').textContent=c.fg||'default';
+		document.getElementById('tg').textContent=c.bg||'default';
+		document.getElementById('tv').textContent=String(!!c.inverse);
+		if(c.hyperlink){document.getElementById('th').style.display='flex';document.getElementById('tl').textContent=c.hyperlink}
+		else{document.getElementById('th').style.display='none'}
 	}
-	function hideTooltip() {
-		tooltip.style.display = 'none';
-	}
+	function hideTooltip(){_t.style.display='none'}
 	]]></script>`)
 
-	// Embed cell grid as JSON for golden file verification
+	// Embed cell grid as JSON for golden file verification and tooltip lookup
 	if jsonView, err := BuildJSONView(r.term); err == nil {
 		if jsonData, err := json.Marshal(jsonView); err == nil {
-			r.buf.WriteString(`<script id="`)
-			r.buf.WriteString(SVGGridJSONID)
-			r.buf.WriteString(`" type="application/json">`)
-			r.buf.WriteString(r.escapeXML(string(jsonData)))
-			r.buf.WriteString(`</script>`)
+			fmt.Fprintf(&r.buf, `<script id="%s" type="application/json">%s</script>`,
+				SVGGridJSONID, r.escapeXML(string(jsonData)))
 		}
 	}
 
