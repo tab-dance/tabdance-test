@@ -88,14 +88,13 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 	width := float64(r.cols) * r.cellWidth
 	height := float64(r.rows) * r.cellHeight
 
-	fmt.Fprintf(&r.buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="0 0 %s %s" onmouseover="_sh(evt)" onmouseout="hideTooltip()">`,
+	fmt.Fprintf(&r.buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="0 0 %s %s" onmousemove="_sh(evt)" onmouseout="hideTooltip()" style="cursor:crosshair">`,
 		r.coord(width), r.coord(height), r.coord(width), r.coord(height))
 
 	// Embedded styles with JetBrains Mono
 	fmt.Fprintf(&r.buf, `<style>
 		@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;display=swap');
 		text{font-family:'JetBrains Mono',monospace;font-size:%spx;dominant-baseline:middle}
-		.c{cursor:crosshair}
 		.b{font-weight:bold}
 		.i{font-style:italic}
 		.s{filter:invert(100%%)}
@@ -178,12 +177,15 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 			bgFillEsc := r.bgFill(ci.BgColor)
 
 			// Hover group — tooltip data looked up from embedded grid by (x,y)
-			gCls := "c"
+			gCls := ""
 			if isSelected {
-				gCls = "c s"
+				gCls = ` class="s"`
 			}
-			fmt.Fprintf(&r.buf, `<g class="%s" data-x="%d" data-y="%d">`,
-				gCls, ci.X, ci.Y)
+			if gCls == "" {
+				r.buf.WriteString(`<g>`)
+			} else {
+				r.buf.WriteString(`<g class="s">`)
+			}
 
 			// Background rect — use <use> for default bg, full <rect> for custom bg
 			if ci.BgColor == "default" {
@@ -265,21 +267,29 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 	</div>
 	</foreignObject>`)
 
-	// JavaScript for tooltip — event delegation from SVG root
+	// JavaScript for tooltip — computes cell position from mouse coordinates
 	r.buf.WriteString(`<script type="text/javascript"><![CDATA[
-	var _g=null;
+	var _g=null,_cx=-1,_cy=-1,_cw=`)
+	r.buf.WriteString(r.coord(r.cellWidth))
+	r.buf.WriteString(`,_ch=`)
+	r.buf.WriteString(r.coord(r.cellHeight))
+	r.buf.WriteString(`;
 	function _gd(){if(!_g){var e=document.getElementById('cell-grid');if(e){_g=JSON.parse(e.textContent)}}return _g}
 	var _t=document.getElementById('ct');
 	function _sh(evt){
-		var el=evt.target.closest('[data-x]');if(!el)return;
-		var x=+el.getAttribute('data-x'),y=+el.getAttribute('data-y');
-		var d=_gd();if(!d)return;
-		var c=d.cells[y+','+x]||{text:'',codepoint:0,fg:'',bg:''};
 		var svg=evt.target.closest('svg');
 		var rect=svg.getBoundingClientRect();
+		var mx=evt.clientX-rect.left,my=evt.clientY-rect.top;
+		var x=Math.floor(mx/_cw),y=Math.floor(my/_ch);
+		if(x===_cx&&y===_cy)return;
+		_cx=x;_cy=y;
+		if(x<0||y<0)return;
+		var d=_gd();if(!d)return;
+		if(x>=d.cols||y>=d.rows)return;
+		var c=d.cells[y+','+x]||{text:'',codepoint:0,fg:'',bg:''};
 		var tw=_t.offsetWidth||300;
 		var th=_t.offsetHeight||200;
-		var px=x*8;var py=y*16;
+		var px=x*_cw;var py=y*_ch;
 		if(py<rect.height/2)py+=20;else py-=th+20;
 		if(px<rect.width/2)px+=20;else px-=tw+20;
 		px=Math.max(10,Math.min(px,rect.width-tw-10));
@@ -299,7 +309,7 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 		if(c.hyperlink){document.getElementById('th').style.display='flex';document.getElementById('tl').textContent=c.hyperlink}
 		else{document.getElementById('th').style.display='none'}
 	}
-	function hideTooltip(){_t.style.display='none'}
+	function hideTooltip(){_t.style.display='none';_cx=-1;_cy=-1}
 	]]></script>`)
 
 	// Embed cell grid as JSON for golden file verification and tooltip lookup
