@@ -20,7 +20,7 @@ type svgRenderer struct {
 	buf           strings.Builder
 }
 
-// cellInfo holds all data needed for a cell tooltip.
+// cellInfo holds all data needed for a cell tooltip and golden file verification.
 type cellInfo struct {
 	Text      string `json:"text"`
 	Codepoint uint32 `json:"codepoint"`
@@ -33,6 +33,9 @@ type cellInfo struct {
 	X         uint16 `json:"x"`
 	Y         uint32 `json:"y"`
 }
+
+// SVGGridJSONID is the id of the <script> element containing the cell grid JSON.
+const SVGGridJSONID = "cell-grid"
 
 // RenderSVG renders the terminal as an SVG with per-cell mouseover tooltips.
 func RenderSVG(term *libghostty.Terminal, trim, unwrap bool) (string, error) {
@@ -390,6 +393,17 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 		tooltip.style.display = 'none';
 	}
 	]]></script>`)
+
+	// Embed cell grid as JSON for golden file verification
+	if jsonView, err := BuildJSONView(r.term); err == nil {
+		if jsonData, err := json.Marshal(jsonView); err == nil {
+			r.buf.WriteString(`<script id="`)
+			r.buf.WriteString(SVGGridJSONID)
+			r.buf.WriteString(`" type="application/json">`)
+			r.buf.WriteString(r.escapeXML(string(jsonData)))
+			r.buf.WriteString(`</script>`)
+		}
+	}
 
 	r.buf.WriteString(`</svg>`)
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/pmezard/go-difflib/difflib"
+	"github.com/tab-dance/tabdance-test/internal/inspect"
 	libghostty "go.mitchellh.com/libghostty"
 )
 
@@ -33,6 +34,32 @@ func VerifyOutput(terminal *libghostty.Terminal, goldenPath string, format strin
 		return nil, fmt.Errorf("read golden file: %w", err)
 	}
 	golden := string(goldenData)
+
+	// For SVG, compare only the embedded JSON grid (not the full SVG markup)
+	if format == "svg" {
+		actualJSON, err := inspect.ExtractSVGGridJSON(actual)
+		if err != nil {
+			return nil, fmt.Errorf("extract JSON from actual SVG: %w", err)
+		}
+		goldenJSON, err := inspect.ExtractSVGGridJSON(golden)
+		if err != nil {
+			return nil, fmt.Errorf("extract JSON from golden SVG: %w", err)
+		}
+		if actualJSON == goldenJSON {
+			return &VerifyResult{Match: true}, nil
+		}
+		diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+			A:        difflib.SplitLines(goldenJSON),
+			FromFile: goldenPath + " (cell-grid JSON)",
+			B:        difflib.SplitLines(actualJSON),
+			ToFile:   "actual (cell-grid JSON)",
+			Context:  3,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("generate diff: %w", err)
+		}
+		return &VerifyResult{Match: false, Diff: diff}, nil
+	}
 
 	if actual == golden {
 		return &VerifyResult{Match: true}, nil
@@ -66,21 +93,31 @@ func UpdateGolden(terminal *libghostty.Terminal, goldenPath string, format strin
 }
 
 func getTerminalContent(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {
-	f, err := libghostty.NewFormatter(terminal,
-		libghostty.WithFormatterFormat(parseFormat(format)),
-		libghostty.WithFormatterTrim(trim),
-		libghostty.WithFormatterUnwrap(unwrap),
-	)
-	if err != nil {
-		return "", err
+	switch format {
+	case "json":
+		return inspect.RenderJSONGrid(terminal)
+	case "svg":
+		svg, err := inspect.RenderSVG(terminal, trim, unwrap)
+		if err != nil {
+			return "", err
+		}
+		return svg, nil
+	default:
+		f, err := libghostty.NewFormatter(terminal,
+			libghostty.WithFormatterFormat(parseFormat(format)),
+			libghostty.WithFormatterTrim(trim),
+			libghostty.WithFormatterUnwrap(unwrap),
+		)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		content, err := f.FormatString()
+		if err != nil {
+			return "", err
+		}
+		return content, nil
 	}
-	defer f.Close()
-
-	content, err := f.FormatString()
-	if err != nil {
-		return "", err
-	}
-	return content, nil
 }
 
 func parseFormat(s string) libghostty.FormatterFormat {

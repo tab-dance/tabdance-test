@@ -40,13 +40,13 @@ var (
 )
 
 func init() {
-	viewCmd.Flags().StringVar(&viewFormat, "format", "plain", "output format: plain, vt, html, svg")
+	viewCmd.Flags().StringVar(&viewFormat, "format", "plain", "output format: plain, vt, html, svg, json")
 	viewCmd.Flags().BoolVar(&viewTrim, "trim", true, "trim trailing whitespace")
 	viewCmd.Flags().BoolVar(&viewUnwrap, "unwrap", true, "unwrap soft-wrapped lines")
 	viewCmd.Flags().BoolVar(&viewJsonOutput, "json", false, "output as JSON")
 	rootCmd.AddCommand(viewCmd)
 	carapace.Gen(viewCmd).FlagCompletion(carapace.ActionMap{
-		"format": carapace.ActionValues("plain", "vt", "html", "svg"),
+		"format": carapace.ActionValues("plain", "vt", "html", "svg", "json"),
 	})
 	carapace.Gen(viewCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),

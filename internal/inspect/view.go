@@ -33,6 +33,8 @@ func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*View
 		content, err = formatTerminal(term, fmtFormat, trim, unwrap)
 	case "svg":
 		content, err = RenderSVG(term, trim, unwrap)
+	case "json":
+		content, err = RenderJSONGrid(term)
 	default:
 		return nil, fmt.Errorf("unknown format %q", format)
 	}
@@ -41,7 +43,7 @@ func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*View
 		return nil, err
 	}
 
-	if format == "svg" {
+	if format == "svg" || format == "json" {
 		return &ViewResult{Content: content}, nil
 	}
 
