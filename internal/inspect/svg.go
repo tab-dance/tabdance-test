@@ -98,7 +98,10 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 		.b{font-weight:bold}
 		.i{font-style:italic}
 		.s{filter:invert(100%%)}
-	</style>`, r.coord(r.cellHeight*0.8))
+		.v{pointer-events:none}
+		.sl text{fill:transparent}
+		.sl text::selection{fill:%s;background:%s}
+	</style>`, r.coord(r.cellHeight*0.8), r.fgColor("default"), r.bgFill("default"))
 
 	// Cursor, selection, and color data
 	cursorX, _ := r.term.CursorX()
@@ -197,16 +200,15 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 
 			// Text (skip empty cells)
 			if ci.Text != "" {
-				var cls string
+				var vcls string
 				if ci.Bold && ci.Italic {
-					cls = ` class="b i"`
+					vcls = " b i"
 				} else if ci.Bold {
-					cls = ` class="b"`
+					vcls = " b"
 				} else if ci.Italic {
-					cls = ` class="i"`
+					vcls = " i"
 				}
-				fmt.Fprintf(&r.buf, `<text x="%s" y="%s" fill="%s"%s`, r.coord(cx), r.coord(cy+r.cellHeight/2), fgEscaped, cls)
-				fmt.Fprintf(&r.buf, `><tspan x="%s">%s</tspan></text>`, r.coord(cx), textEscaped)
+				fmt.Fprintf(&r.buf, `<text x="%s" y="%s" fill="%s" class="v%s"><tspan x="%s">%s</tspan></text>`, r.coord(cx), r.coord(cy+r.cellHeight/2), fgEscaped, vcls, r.coord(cx), textEscaped)
 			}
 
 			// Cursor overlay
@@ -225,16 +227,15 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 					fmt.Fprintf(&r.buf, `<rect x="%s" y="%s" width="%s" height="%s" fill="%s" opacity="%s"/>`,
 						r.coord(cx), r.coord(cy), r.coord(r.cellWidth), r.coord(r.cellHeight), fgEscaped, cursorOpacity)
 					if ci.Text != "" {
-						var cls string
+						var vcls string
 						if ci.Bold && ci.Italic {
-							cls = ` class="b i"`
+							vcls = " b i"
 						} else if ci.Bold {
-							cls = ` class="b"`
+							vcls = " b"
 						} else if ci.Italic {
-							cls = ` class="i"`
+							vcls = " i"
 						}
-						fmt.Fprintf(&r.buf, `<text x="%s" y="%s" fill="%s"%s`, r.coord(cx), r.coord(cy+r.cellHeight/2), bgFillEsc, cls)
-						fmt.Fprintf(&r.buf, `><tspan x="%s">%s</tspan></text>`, r.coord(cx), textEscaped)
+						fmt.Fprintf(&r.buf, `<text x="%s" y="%s" fill="%s" class="v%s"><tspan x="%s">%s</tspan></text>`, r.coord(cx), r.coord(cy+r.cellHeight/2), bgFillEsc, vcls, r.coord(cx), textEscaped)
 					}
 				}
 			}
@@ -242,6 +243,41 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 			r.buf.WriteString(`</g>`)
 		}
 	}
+
+	// Selectable text layer — one <text> per row with transparent fill
+	// so browser native text selection works across cells
+	r.buf.WriteString(`<g class="sl">`)
+	for y := uint32(0); y < uint32(r.rows); y++ {
+		fmt.Fprintf(&r.buf, `<text x="0" y="%s">`, r.coord(float64(y)*r.cellHeight+r.cellHeight/2))
+		for x := uint16(0); x < r.cols; x++ {
+			point := libghostty.Point{
+				Tag: libghostty.PointTagViewport,
+				X:   x,
+				Y:   y,
+			}
+			ref, err := r.term.GridRef(point)
+			if err != nil {
+				continue
+			}
+			cell, _ := ref.Cell()
+			if cell != nil {
+				if wide, _ := cell.Wide(); wide == libghostty.CellWideSpacerTail {
+					continue
+				}
+			}
+			if graphemes, err := ref.Graphemes(); err == nil && len(graphemes) > 0 {
+				runes := make([]rune, len(graphemes))
+				for i, cp := range graphemes {
+					runes[i] = rune(cp)
+				}
+				fmt.Fprintf(&r.buf, `<tspan x="%s">%s</tspan>`, r.coord(float64(x)*r.cellWidth), r.escapeXML(string(runes)))
+			} else {
+				fmt.Fprintf(&r.buf, `<tspan x="%s"> </tspan>`, r.coord(float64(x)*r.cellWidth))
+			}
+		}
+		r.buf.WriteString(`</text>`)
+	}
+	r.buf.WriteString(`</g>`)
 
 	// Tooltip overlay div (foreignObject for HTML tooltip)
 	r.buf.WriteString(`<foreignObject x="0" y="0" width="100%" height="100%" style="pointer-events:none;">
@@ -273,10 +309,13 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 	r.buf.WriteString(r.coord(r.cellWidth))
 	r.buf.WriteString(`,_ch=`)
 	r.buf.WriteString(r.coord(r.cellHeight))
-	r.buf.WriteString(`;
+	r.buf.WriteString(`,_md=false;
+	document.addEventListener('mousedown',function(){_md=true});
+	document.addEventListener('mouseup',function(){_md=false});
 	function _gd(){if(!_g){var e=document.getElementById('cell-grid');if(e){_g=JSON.parse(e.textContent)}}return _g}
 	var _t=document.getElementById('ct');
 	function _sh(evt){
+		if(_md)return;
 		var svg=evt.target.closest('svg');
 		var rect=svg.getBoundingClientRect();
 		var mx=evt.clientX-rect.left,my=evt.clientY-rect.top;
