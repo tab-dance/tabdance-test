@@ -396,7 +396,7 @@ func (r *svgRenderer) fgColor(fg string) string {
 		}
 		return "#d4d4d4"
 	default:
-		return fg
+		return r.resolveColorString(fg, true)
 	}
 }
 
@@ -409,8 +409,28 @@ func (r *svgRenderer) bgFill(bg string) string {
 		}
 		return "#171717"
 	default:
-		return bg
+		return r.resolveColorString(bg, false)
 	}
+}
+
+// resolveColorString resolves a color string (e.g. "color3", "#rrggbb") to a
+// valid SVG hex color. Palette references like "colorN" are resolved using the
+// terminal's palette; hex colors pass through unchanged.
+func (r *svgRenderer) resolveColorString(s string, isFg bool) string {
+	if len(s) > 5 && s[:5] == "color" {
+		var idx int
+		if _, err := fmt.Sscanf(s, "color%d", &idx); err == nil {
+			if r.colors != nil && idx < len(r.colors.Palette) {
+				c := r.colors.Palette[idx]
+				return fmt.Sprintf("#%02x%02x%02x", c.R, c.G, c.B)
+			}
+			if isFg {
+				return "#d4d4d4"
+			}
+			return "#171717"
+		}
+	}
+	return s
 }
 
 // resolveStyleColor resolves a StyleColor to a hex color string using the
