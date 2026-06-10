@@ -29,12 +29,12 @@ var (
 )
 
 func init() {
-	snapshotCmd.Flags().StringVar(&snapshotFormat, "format", "plain", "output format: plain, vt, html")
+	snapshotCmd.Flags().StringVar(&snapshotFormat, "format", "plain", "output format: plain, vt, html, svg, json")
 	snapshotCmd.Flags().BoolVar(&snapshotTrim, "trim", true, "trim trailing whitespace")
 	snapshotCmd.Flags().BoolVar(&snapshotUnwrap, "unwrap", true, "unwrap soft-wrapped lines")
 	rootCmd.AddCommand(snapshotCmd)
 	carapace.Gen(snapshotCmd).FlagCompletion(carapace.ActionMap{
-		"format": carapace.ActionValues("plain", "vt", "html"),
+		"format": carapace.ActionValues("plain", "vt", "html", "svg", "json"),
 	})
 	carapace.Gen(snapshotCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),

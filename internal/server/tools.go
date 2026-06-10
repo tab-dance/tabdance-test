@@ -71,9 +71,9 @@ func (s *Server) registerTools() {
 	), s.handleSendPaste)
 
 	s.mcp.AddTool(mcp.NewTool("get_view",
-		mcp.WithDescription("Get the current terminal view as plain text, VT, or HTML"),
+		mcp.WithDescription("Get the current terminal view as plain text, VT, HTML, SVG, or JSON"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleGetView)
@@ -124,7 +124,7 @@ func (s *Server) registerTools() {
 		mcp.WithDescription("Verify terminal output against a golden file. Returns match status and diff on mismatch."),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 		mcp.WithString("golden_path", mcp.Required(), mcp.Description("Path to the golden file")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleVerifyOutput)
@@ -133,7 +133,7 @@ func (s *Server) registerTools() {
 		mcp.WithDescription("Update (or create) a golden file with the current terminal output"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 		mcp.WithString("golden_path", mcp.Required(), mcp.Description("Path to the golden file")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleUpdateGolden)
@@ -144,7 +144,7 @@ func (s *Server) registerTools() {
 		mcp.WithString("pattern", mcp.Required(), mcp.Description("Regex pattern to match")),
 		mcp.WithString("scope", mcp.Description("Match scope: screen (default) or line")),
 		mcp.WithNumber("timeout", mcp.Description("Timeout in seconds (default: 10)")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleWaitFor)

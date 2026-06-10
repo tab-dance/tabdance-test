@@ -44,6 +44,7 @@ var cellCmd = &cobra.Command{
 		fmt.Printf("italic:    %v\n", result.Italic)
 		fmt.Printf("fg:        %s\n", result.FgColor)
 		fmt.Printf("bg:        %s\n", result.BgColor)
+		fmt.Printf("inverse:   %v\n", result.Inverse)
 		if result.Hyperlink != "" {
 			fmt.Printf("hyperlink: %s\n", result.Hyperlink)
 		}

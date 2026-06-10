@@ -40,12 +40,12 @@ var (
 )
 
 func init() {
-	verifyCmd.Flags().StringVar(&verifyFormat, "format", "plain", "output format: plain, vt, html")
+	verifyCmd.Flags().StringVar(&verifyFormat, "format", "plain", "output format: plain, vt, html, svg, json")
 	verifyCmd.Flags().BoolVar(&verifyTrim, "trim", true, "trim trailing whitespace")
 	verifyCmd.Flags().BoolVar(&verifyUnwrap, "unwrap", true, "unwrap soft-wrapped lines")
 	rootCmd.AddCommand(verifyCmd)
 	carapace.Gen(verifyCmd).FlagCompletion(carapace.ActionMap{
-		"format": carapace.ActionValues("plain", "vt", "html"),
+		"format": carapace.ActionValues("plain", "vt", "html", "svg", "json"),
 	})
 	carapace.Gen(verifyCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),
