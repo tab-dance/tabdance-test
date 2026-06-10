@@ -18,14 +18,14 @@ Comprehensive reference for [VHS](https://github.com/charmbracelet/vhs) (charmbr
 
 Load the reference that matches your task. When in doubt, load multiple references.
 
-|| Keywords | Reference |
-||----------|----------|
-|| tape DSL, Type, Sleep, Wait, Ctrl, Alt, Enter, Backspace, Tab, Screenshot, Hide, Show, Output, Require, Set, Env, Source, Copy, Paste, ScrollUp, ScrollDown, command reference | [references/tape-dsl.md](references/tape-dsl.md) |
-|| Set Shell, Set FontSize, Set FontFamily, Set Width, Set Height, Set TypingSpeed, Set Theme, Set Framerate, Set PlaybackSpeed, Set WaitTimeout, all settings | [references/settings.md](references/settings.md) |
-|| architecture, ttyd, go-rod, ffmpeg, xterm.js, canvas, frame recording, rendering pipeline, GIF, MP4, WebM, screenshot, compositing | [references/architecture.md](references/architecture.md) |
-|| lexer, parser, token, Command, CommandType, parser package, lexer package, token package, programmatic parsing, import | [references/tape-parsing.md](references/tape-parsing.md) |
-|| testing, golden file, .ascii, .txt, Buffer, integration test, CI, vhs-action, diff, assertion | [references/testing.md](references/testing.md) |
-|| vhs record, record mode, PTY, creack/pty, EscapeSequences, inputToTape, recording from terminal | [references/recording.md](references/recording.md) |
+| Keywords | Reference |
+|----------|----------|
+| tape DSL, Type, Sleep, Wait, Ctrl, Alt, Enter, Backspace, Tab, Screenshot, Hide, Show, Output, Require, Set, Env, Source, Copy, Paste, ScrollUp, ScrollDown, command reference | [references/tape-dsl.md](references/tape-dsl.md) |
+| Set Shell, Set FontSize, Set FontFamily, Set Width, Set Height, Set TypingSpeed, Set Theme, Set Framerate, Set PlaybackSpeed, Set WaitTimeout, all settings | [references/settings.md](references/settings.md) |
+| architecture, ttyd, go-rod, ffmpeg, xterm.js, canvas, frame recording, rendering pipeline, GIF, MP4, WebM, screenshot, compositing | [references/architecture.md](references/architecture.md) |
+| lexer, parser, token, Command, CommandType, parser package, lexer package, token package, programmatic parsing, import | [references/tape-parsing.md](references/tape-parsing.md) |
+| testing, golden file, .ascii, .txt, Buffer, integration test, CI, vhs-action, diff, assertion | [references/testing.md](references/testing.md) |
+| vhs record, record mode, PTY, creack/pty, EscapeSequences, inputToTape, recording from terminal | [references/recording.md](references/recording.md) |
 
 ## Quick Guide
 
