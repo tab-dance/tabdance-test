@@ -28,6 +28,7 @@ type jsonCell struct {
 	Italic    bool   `json:"italic"`
 	FgColor   string `json:"fg"`
 	BgColor   string `json:"bg"`
+	Inverse   bool   `json:"inverse"`
 	Hyperlink string `json:"hyperlink,omitempty"`
 }
 
@@ -152,22 +153,10 @@ func collectJSONCell(ref *libghostty.GridRef, _ uint16, _ uint32, _ *libghostty.
 	if style, err := ref.Style(); err == nil && style != nil {
 		c.Bold = style.Bold()
 		c.Italic = style.Italic()
-		inverse := style.Inverse() != reverseColors
-		if inverse {
-			fg := styleColorString(style.FgColor())
-			bg := styleColorString(style.BgColor())
-			if c.BgColor != "" {
-				c.FgColor = c.BgColor
-				c.BgColor = fg
-			} else {
-				c.FgColor = bg
-				c.BgColor = fg
-			}
-		} else {
-			c.FgColor = styleColorString(style.FgColor())
-			if c.BgColor == "" {
-				c.BgColor = styleColorString(style.BgColor())
-			}
+		c.Inverse = style.Inverse() != reverseColors
+		c.FgColor = styleColorString(style.FgColor())
+		if c.BgColor == "" {
+			c.BgColor = styleColorString(style.BgColor())
 		}
 	}
 
