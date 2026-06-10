@@ -59,7 +59,7 @@ AI Agent
 
 Load the reference that matches your task. When in doubt, load multiple references.
 
-|| Keywords | Reference |
+| Keywords | Reference |
 |----------|----------|
 | CLI commands, cobra, carapace, exec, view, keys, run, daemon, socket, attach, terminal ID completion | [references/cli-commands.md](references/cli-commands.md) |
 | MCP tools, tool interface, create_terminal, send_keys, send_text, resize, get_view, get_content, screenshot, reset, list_terminals, close_terminal, MCP protocol, tool schema | [references/mcp-tools.md](references/mcp-tools.md) |
