@@ -18,32 +18,57 @@ type ViewResult struct {
 
 func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*ViewResult, error) {
 	var fmtFormat libghostty.FormatterFormat
+	var content string
+	var err error
+
 	switch format {
 	case "plain":
 		fmtFormat = libghostty.FormatterFormatPlain
+		content, err = formatTerminal(term, fmtFormat, trim, unwrap)
 	case "vt":
 		fmtFormat = libghostty.FormatterFormatVT
+		content, err = formatTerminal(term, fmtFormat, trim, unwrap)
 	case "html":
 		fmtFormat = libghostty.FormatterFormatHTML
+		content, err = formatTerminal(term, fmtFormat, trim, unwrap)
+	case "svg":
+		content, err = RenderSVG(term, trim, unwrap)
+	case "json":
+		content, err = RenderJSONGrid(term)
 	default:
 		return nil, fmt.Errorf("unknown format %q", format)
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
+	if format == "svg" || format == "json" {
+		return &ViewResult{Content: content}, nil
+	}
+
+	return buildViewResult(term, content)
+}
+
+func formatTerminal(term *libghostty.Terminal, fmtFormat libghostty.FormatterFormat, trim, unwrap bool) (string, error) {
 	f, err := libghostty.NewFormatter(term,
 		libghostty.WithFormatterFormat(fmtFormat),
 		libghostty.WithFormatterTrim(trim),
 		libghostty.WithFormatterUnwrap(unwrap),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create formatter: %w", err)
+		return "", fmt.Errorf("create formatter: %w", err)
 	}
 	defer f.Close()
 
 	content, err := f.FormatString()
 	if err != nil {
-		return nil, fmt.Errorf("format: %w", err)
+		return "", fmt.Errorf("format: %w", err)
 	}
+	return content, nil
+}
 
+func buildViewResult(term *libghostty.Terminal, content string) (*ViewResult, error) {
 	cursorX, _ := term.CursorX()
 	cursorY, _ := term.CursorY()
 	cursorVisible, _ := term.CursorVisible()
@@ -70,7 +95,7 @@ func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*View
 		CursorY:       cursorY,
 		CursorVisible: cursorVisible,
 		CursorStyle:   styleStr,
-		ActiveScreen:   screenStr,
+		ActiveScreen:  screenStr,
 	}, nil
 }
 
