@@ -29,6 +29,7 @@ type cellInfo struct {
 	Italic    bool   `json:"italic"`
 	FgColor   string `json:"fg"`
 	BgColor   string `json:"bg"`
+	Inverse   bool   `json:"inverse"`
 	Hyperlink string `json:"hyperlink,omitempty"`
 	X         uint16 `json:"x"`
 	Y         uint32 `json:"y"`
@@ -181,6 +182,7 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 				"italic":     ci.Italic,
 				"fg":         ci.FgColor,
 				"bg":         ci.BgColor,
+				"inverse":    ci.Inverse,
 				"hyperlink":  ci.Hyperlink,
 			}
 			tooltipJSON, _ := json.Marshal(tooltip)
@@ -346,6 +348,7 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 			<div class="row"><span class="key">Italic:</span><span class="val" id="tt-italic"></span></div>
 			<div class="row"><span class="key">FG:</span><span class="val" id="tt-fg"></span></div>
 			<div class="row"><span class="key">BG:</span><span class="val" id="tt-bg"></span></div>
+			<div class="row"><span class="key">Inverse:</span><span class="val" id="tt-inverse"></span></div>
 			<div class="row" id="tt-hl-row" style="display:none"><span class="key">Link:</span><span class="val" id="tt-hl"></span></div>
 		</div>
 	</div>
@@ -382,6 +385,7 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 		document.getElementById('tt-italic').textContent = String(data.italic);
 		document.getElementById('tt-fg').textContent = data.fg;
 		document.getElementById('tt-bg').textContent = data.bg;
+		document.getElementById('tt-inverse').textContent = String(data.inverse);
 		if (data.hyperlink) {
 			document.getElementById('tt-hl-row').style.display = 'flex';
 			document.getElementById('tt-hl').textContent = data.hyperlink;
@@ -448,8 +452,8 @@ func (r *svgRenderer) collectCellInfo(ref *libghostty.GridRef, x uint16, y uint3
 	if style, err := ref.Style(); err == nil && style != nil {
 		ci.Bold = style.Bold()
 		ci.Italic = style.Italic()
-		inverse := style.Inverse() != r.reverseColors
-		if inverse {
+		ci.Inverse = style.Inverse() != r.reverseColors
+		if inverse := ci.Inverse; inverse {
 			fg := r.resolveStyleColor(style.FgColor(), true)
 			bg := r.resolveStyleColor(style.BgColor(), false)
 			if ci.BgColor != "" {

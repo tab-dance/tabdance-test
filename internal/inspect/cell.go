@@ -15,6 +15,7 @@ type CellResult struct {
 	Italic    bool   `json:"italic"`
 	FgColor   string `json:"fg"`
 	BgColor   string `json:"bg"`
+	Inverse   bool   `json:"inverse"`
 	Hyperlink string `json:"hyperlink,omitempty"`
 }
 
@@ -39,6 +40,19 @@ func GetCell(term *libghostty.Terminal, x uint16, y uint32) (*CellResult, error)
 
 		wide, _ := cell.Wide()
 		result.Wide = wide == libghostty.CellWideWide
+
+		if tag, err := cell.ContentTag(); err == nil {
+			switch tag {
+			case libghostty.CellContentBgColorPalette:
+				if idx, err := cell.ColorPalette(); err == nil {
+					result.BgColor = fmt.Sprintf("color%d", idx)
+				}
+			case libghostty.CellContentBgColorRGB:
+				if rgb, err := cell.ColorRGB(); err == nil {
+					result.BgColor = fmt.Sprintf("#%02x%02x%02x", rgb.R, rgb.G, rgb.B)
+				}
+			}
+		}
 	}
 
 	if graphemes, err := ref.Graphemes(); err == nil && len(graphemes) > 0 {
@@ -49,11 +63,16 @@ func GetCell(term *libghostty.Terminal, x uint16, y uint32) (*CellResult, error)
 		result.Text = string(runes)
 	}
 
+	reverseColors, _ := term.ModeGet(libghostty.ModeReverseColors)
+
 	if style, err := ref.Style(); err == nil && style != nil {
 		result.Bold = style.Bold()
 		result.Italic = style.Italic()
+		result.Inverse = style.Inverse() != reverseColors
 		result.FgColor = styleColorString(style.FgColor())
-		result.BgColor = styleColorString(style.BgColor())
+		if result.BgColor == "" {
+			result.BgColor = styleColorString(style.BgColor())
+		}
 	}
 
 	if uri, err := ref.HyperlinkURI(); err == nil && uri != "" {

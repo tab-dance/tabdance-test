@@ -39,6 +39,7 @@ type cellResult struct {
 	Italic    bool   `json:"italic"`
 	FgColor   string `json:"fg"`
 	BgColor   string `json:"bg"`
+	Inverse   bool   `json:"inverse"`
 	Hyperlink string `json:"hyperlink,omitempty"`
 }
 
