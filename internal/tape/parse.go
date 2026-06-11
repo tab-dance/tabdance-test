@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/charmbracelet/vhs/lexer"
 	"github.com/charmbracelet/vhs/parser"
@@ -171,16 +172,34 @@ func parseShiftCombo(s string) (libghostty.Key, libghostty.Mods) {
 }
 
 func parseKeyChar(s string) libghostty.Key {
-	if len(s) == 1 {
-		r := strings.ToUpper(s)
-		k, err := libghostty.ParseKey("Key" + r)
-		if err == nil {
-			return k
-		}
-	}
-	k, err := libghostty.ParseKey(s)
+	k, err := libghostty.ParseKey(normalizeKeyName(s))
 	if err == nil {
 		return k
 	}
 	return libghostty.KeyUnidentified
+}
+
+// normalizeKeyName converts key names to the snake_case format expected by
+// libghostty.ParseKey. Single ASCII letters are prefixed with "key_"
+// (e.g. "F" → "key_f", "a" → "key_a"). PascalCase names like "KeyA" or
+// "ArrowDown" are converted to snake_case (e.g. "key_a", "arrow_down").
+// Already-snake_case names are returned unchanged.
+func normalizeKeyName(name string) string {
+	if strings.Contains(name, "_") {
+		return name
+	}
+	if len(name) == 1 {
+		r := rune(name[0])
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			return "key_" + strings.ToLower(name)
+		}
+	}
+	var b strings.Builder
+	for i, r := range name {
+		if i > 0 && unicode.IsUpper(r) {
+			b.WriteByte('_')
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
 }
