@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	libghostty "go.mitchellh.com/libghostty"
 )
 
 func TestShellToCommand(t *testing.T) {
@@ -116,5 +118,65 @@ func TestParseSettingsFileNotFound(t *testing.T) {
 	_, err := ParseSettings("/nonexistent/path.tape")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
+	}
+}
+
+func TestNormalizeKeyName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"F", "key_f"},
+		{"a", "key_a"},
+		{"z", "key_z"},
+		{"A", "key_a"},
+		{"Z", "key_z"},
+		{"KeyA", "key_a"},
+		{"KeyZ", "key_z"},
+		{"ArrowDown", "arrow_down"},
+		{"ArrowUp", "arrow_up"},
+		{"PageDown", "page_down"},
+		{"PageUp", "page_up"},
+		{"already_snake", "already_snake"},
+		{"key_a", "key_a"},
+		{"f1", "f1"},
+		{"Enter", "enter"},
+		{"Backspace", "backspace"},
+		{"NumpadEnter", "numpad_enter"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := normalizeKeyName(tt.input)
+			if got != tt.want {
+				t.Errorf("normalizeKeyName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseCtrlCombo(t *testing.T) {
+	tests := []struct {
+		input    string
+		wantKey  libghostty.Key
+		wantMods libghostty.Mods
+	}{
+		{"F", libghostty.KeyF, libghostty.ModCtrl},
+		{"a", libghostty.KeyA, libghostty.ModCtrl},
+		{"Ctrl+F", libghostty.KeyF, libghostty.ModCtrl},
+		{"Ctrl+Alt+F", libghostty.KeyF, libghostty.ModCtrl | libghostty.ModAlt},
+		{"Ctrl+Shift+L", libghostty.KeyL, libghostty.ModCtrl | libghostty.ModShift},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			key, mods := parseCtrlCombo(tt.input)
+			if key != tt.wantKey {
+				t.Errorf("parseCtrlCombo(%q) key = %v, want %v", tt.input, key, tt.wantKey)
+			}
+			if mods != tt.wantMods {
+				t.Errorf("parseCtrlCombo(%q) mods = %v, want %v", tt.input, mods, tt.wantMods)
+			}
+		})
 	}
 }
