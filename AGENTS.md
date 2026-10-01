@@ -22,6 +22,17 @@ make run                   # Build dynamic + run
 
 Ghostty is included as a git submodule at `deps/ghostty` (pinned to commit `cb36966a752982014827a9cabcf630ec3788b3d9`). The `build-lib` target compiles `libghostty-vt` from the submodule using Zig. All other build targets depend on `build-lib` automatically. Requires Zig 0.15.2 (set via `ZIG` make variable, defaults to `/tmp/zig-x86_64-linux-0.15.2/zig`).
 
+## Releasing
+
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleaser on ubuntu-24.04 to build static Linux binaries (amd64 + arm64) and publish a draft GitHub release with tar.gz archives and checksums. Key points:
+
+- `.goreleaser.yaml` uses the Go builder with a `hooks.pre` script (`scripts/build-lib.sh <target>`) that cross-compiles `libghostty-vt` per target into `dist/lib/<target>` with `zig build -Dtarget=...`. Each target gets its own pkg-config tree so parallel builds don't clobber each other.
+- `PKG_CONFIG_PATH` must be absolute (cgo runs pkg-config from the go.mitchellh.com/libghostty module directory), hence the `GITHUB_WORKSPACE` template.
+- Cross-linking uses `zig cc -target <triple>` as `CC` per target (see `overrides`).
+- Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=/tmp/zig-x86_64-linux-0.15.2/zig goreleaser release --snapshot --clean`
+- `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging.
+- Only Linux targets are currently built; macOS/Windows need per-platform runners (and, for macOS, an SDK).
+
 ## Architecture & Data Flow
 
 ### CLI Mode (daemon-backed)

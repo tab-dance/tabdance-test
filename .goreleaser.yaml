@@ -1,0 +1,45 @@
+version: 2
+
+project_name: tabdance-test
+
+builds:
+  - id: tabdance-test
+    main: ./cmd/tabdance-test
+    binary: tabdance-test
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=1
+      # Absolute path is required: cgo runs pkg-config from the
+      # go.mitchellh.com/libghostty module directory, so relative
+      # PKG_CONFIG_PATH entries are not resolved.
+      - PKG_CONFIG_PATH={{ .Env.GITHUB_WORKSPACE }}/dist/lib/{{ .Target }}/share/pkgconfig
+    hooks:
+      pre:
+        - cmd: ./scripts/build-lib.sh {{ .Target }}
+          output: true
+    overrides:
+      - goos: linux
+        goarch: amd64
+        env:
+          - CC=zig cc -target x86_64-linux-gnu
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=zig cc -target aarch64-linux-gnu
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+
+release:
+  draft: true
