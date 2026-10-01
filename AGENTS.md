@@ -30,6 +30,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleas
 - `PKG_CONFIG_PATH` must be absolute (cgo runs pkg-config from the go.mitchellh.com/libghostty module directory), hence the `GITHUB_WORKSPACE` template.
 - Cross-linking uses `zig cc -target <triple>` as `CC` per target (see `overrides`).
 - Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=/tmp/zig-x86_64-linux-0.15.2/zig goreleaser release --snapshot --clean`
+- `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging.
 - Only Linux targets are currently built; macOS/Windows need per-platform runners (and, for macOS, an SDK).
 
 ## Architecture & Data Flow
