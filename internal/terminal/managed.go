@@ -1,9 +1,7 @@
 package terminal
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"sync"
@@ -22,7 +20,6 @@ type ManagedTerminal struct {
 	MouseEncoder *libghostty.MouseEncoder
 	Cmd          *exec.Cmd
 	Ptmx         *os.File
-	PTYOut       *bytes.Buffer
 	Recorder     *recording.AsciicastRecorder
 	Command      string
 	Cols         uint16
@@ -30,7 +27,6 @@ type ManagedTerminal struct {
 
 	mu          sync.Mutex
 	done        chan struct{}
-	ptyOut      *bytes.Buffer
 	close       sync.Once
 	subscribers []*outputSubscriber
 }
@@ -45,13 +41,21 @@ type CreateConfig struct {
 }
 
 func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
-	ptyOut := &bytes.Buffer{}
+	// The terminal's responses to shell queries (cursor position, device
+	// attributes, ...) are written to the PTY synchronously during VTWrite:
+	// the query is processed in the read loop and the response reaches the
+	// shell before the next output chunk is read. Buffering them through a
+	// separate write loop makes the response arrival time race with the
+	// shell's rendering state machine, producing non-deterministic output.
+	var ptmx *os.File
 
 	term, err := libghostty.NewTerminal(
 		libghostty.WithSize(cfg.Cols, cfg.Rows),
 		libghostty.WithMaxScrollback(cfg.Scrollback),
 		libghostty.WithWritePty(func(_ *libghostty.Terminal, data []byte) {
-			ptyOut.Write(data)
+			if ptmx != nil {
+				ptmx.Write(data)
+			}
 		}),
 	)
 	if err != nil {
@@ -74,16 +78,14 @@ func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
 	mouseEnc.SetOptFromTerminal(term)
 
 	m := &ManagedTerminal{
-		ID:           id,
-		Terminal:     term,
-		KeyEncoder:   keyEnc,
+		ID:         id,
+		Terminal:   term,
+		KeyEncoder: keyEnc,
 		MouseEncoder: mouseEnc,
-		PTYOut:       ptyOut,
-		Command:      cfg.Command,
-		Cols:         cfg.Cols,
-		Rows:         cfg.Rows,
-		ptyOut:       ptyOut,
-		done:         make(chan struct{}),
+		Command:    cfg.Command,
+		Cols:       cfg.Cols,
+		Rows:       cfg.Rows,
+		done:       make(chan struct{}),
 	}
 
 	if cfg.Command != "" {
@@ -116,9 +118,9 @@ func (m *ManagedTerminal) startPTY(cfg CreateConfig) error {
 
 	m.Cmd = cmd
 	m.Ptmx = ptmx
+	ptmx = m.Ptmx
 
 	go m.ptyReadLoop()
-	go m.ptyWriteLoop()
 
 	return nil
 }
@@ -154,36 +156,6 @@ func (m *ManagedTerminal) ptyReadLoop() {
 			}
 		}
 		m.mu.Unlock()
-	}
-}
-
-func (m *ManagedTerminal) ptyWriteLoop() {
-	buf := make([]byte, 4096)
-	for {
-		select {
-		case <-m.done:
-			return
-		default:
-		}
-
-		n, err := m.ptyOut.Read(buf)
-		if err != nil {
-			// bytes.Buffer.Read returns io.EOF when empty; the shell may
-			// write more later (e.g. responses to its capability queries
-			// arrive after the terminal processes them), so keep polling.
-			if err == io.EOF {
-				time.Sleep(time.Millisecond)
-				continue
-			}
-			return
-		}
-		if n == 0 {
-			continue
-		}
-
-		if m.Ptmx != nil {
-			m.Ptmx.Write(buf[:n])
-		}
 	}
 }
 
