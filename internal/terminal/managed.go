@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sync"
@@ -167,6 +168,13 @@ func (m *ManagedTerminal) ptyWriteLoop() {
 
 		n, err := m.ptyOut.Read(buf)
 		if err != nil {
+			// bytes.Buffer.Read returns io.EOF when empty; the shell may
+			// write more later (e.g. responses to its capability queries
+			// arrive after the terminal processes them), so keep polling.
+			if err == io.EOF {
+				time.Sleep(time.Millisecond)
+				continue
+			}
 			return
 		}
 		if n == 0 {
