@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/carapace-sh/carapace"
 	"github.com/spf13/cobra"
@@ -20,7 +21,7 @@ var execCmd = &cobra.Command{
 			env[k] = v
 		}
 
-		id, err := c.Exec(args[0], execCols, execRows, execScrollback, env, execWorkingDir, execRecordPath)
+		id, err := c.Exec(strings.Join(args, " "), execCols, execRows, execScrollback, env, execWorkingDir, execRecordPath)
 		if err != nil {
 			return err
 		}

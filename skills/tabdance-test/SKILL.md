@@ -68,7 +68,8 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 | terminal inspection, get_view, get_content, Formatter, RenderState, GridRef, Cell, Row, Style, cursor position, screen content, plain text, VT, HTML | [references/terminal-inspection.md](references/terminal-inspection.md) |
 | asciinema recording, .cast, AsciicastRecorder, incremental recording, timing, event stream, header, output/input/marker/resize events | [references/asciinema-recording.md](references/asciinema-recording.md) |
 | VHS tape playback, .tape, tape parser, tape executor, Type, Enter, Ctrl, Sleep, Wait, Screenshot, converting tape to go-libghostty operations | [references/vhs-playback.md](references/vhs-playback.md) |
-| golden file, verification, comparison, plain text, VT snapshot, HTML snapshot, diff, assertion, testdata, update golden | [references/golden-files.md](references/golden-files.md) |
+| golden file, verification, comparison, plain text, VT snapshot, HTML snapshot, diff, assertion, testdata, update golden | [references/golden-files.md](references/golden-files.md)
+| shell integration, tape conventions, startup delay, banner suppression, prompt control, XDG isolation, single-match prefix, container-canonical golden, Wait+Screen vs Wait+Line, golden capture, pty write loop, capability queries | [references/shell-integration-testing.md](references/shell-integration-testing.md) |
 | wait_for, poll, regex, screen match, line match, timeout, elapsed | [references/wait-poll.md](references/wait-poll.md) |
 | bubbletea testing, tea.Program, headless, WithInput, WithOutput, WithoutRenderer, testing TUI, agent-driven test, tabdance integration test | [references/bubbletea-testing.md](references/bubbletea-testing.md) |
 
@@ -82,6 +83,7 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 - **How do I create asciinema recordings?** → [references/asciinema-recording.md](references/asciinema-recording.md)
 - **How do I play VHS tapes?** → [references/vhs-playback.md](references/vhs-playback.md)
 - **How do I verify output against golden files?** → [references/golden-files.md](references/golden-files.md)
+- **How do I write deterministic tapes for shell completion testing?** → [references/shell-integration-testing.md](references/shell-integration-testing.md)
 - **How do I wait for content to appear?** → [references/wait-poll.md](references/wait-poll.md)
 - **How do I test Bubble Tea applications?** → [references/bubbletea-testing.md](references/bubbletea-testing.md)
 
