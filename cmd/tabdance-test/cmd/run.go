@@ -97,6 +97,11 @@ func runTape(tapePath, goldenPath string, update bool) error {
 	if settings.TypingSpeed > 0 {
 		executor.SetTypingSpeed(settings.TypingSpeed)
 	}
+	if runPreTape != "" {
+		if err := executor.Execute(runPreTape); err != nil {
+			return fmt.Errorf("execute setup tape: %w", err)
+		}
+	}
 	if err := executor.Execute(tapePath); err != nil {
 		return fmt.Errorf("execute tape: %w", err)
 	}
@@ -184,6 +189,7 @@ var (
 	runRecordPath string
 	runEnv        []string
 	runWorkingDir string
+	runPreTape    string
 )
 
 func init() {
@@ -195,6 +201,7 @@ func init() {
 	runCmd.Flags().StringVar(&runRecordPath, "record", "", "record session to .cast file")
 	runCmd.Flags().StringArrayVar(&runEnv, "env", nil, "environment variables (key=value, repeatable)")
 	runCmd.Flags().StringVar(&runWorkingDir, "working-directory", "", "working directory for the child process")
+	runCmd.Flags().StringVar(&runPreTape, "pre", "", "tape to execute before the main tape (e.g. shell setup)")
 
 	rootCmd.AddCommand(runCmd)
 
