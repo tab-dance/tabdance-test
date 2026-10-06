@@ -73,7 +73,7 @@ func ShellToCommand(shell string) string {
 	case "osh":
 		return "osh --norc"
 	case "xonsh":
-		return "xonsh --no-rc"
+		return "xonsh --no-rc -DXONSH_SUPPRESS_WELCOME=True"
 	default:
 		return shell
 	}
