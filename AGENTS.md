@@ -20,7 +20,7 @@ make clean                 # Remove binary
 make run                   # Build dynamic + run
 ```
 
-Ghostty is included as a git submodule at `deps/ghostty` (pinned to commit `cb36966a752982014827a9cabcf630ec3788b3d9`). The `build-lib` target compiles `libghostty-vt` from the submodule using Zig. All other build targets depend on `build-lib` automatically. Requires Zig 0.15.2 (set via `ZIG` make variable, defaults to `/tmp/zig-x86_64-linux-0.15.2/zig`).
+Ghostty is included as a git submodule at `deps/ghostty` (tracking Ghostty `main`). The `build-lib` target compiles `libghostty-vt` from the submodule using Zig. All other build targets depend on `build-lib` automatically. Requires Zig 0.17.0 or newer on the PATH (override with the `ZIG` make variable).
 
 ## Releasing
 
@@ -29,7 +29,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleas
 - `.goreleaser.yaml` uses the Go builder with a `hooks.pre` script (`scripts/build-lib.sh <target>`) that cross-compiles `libghostty-vt` per target into `dist/lib/<target>` with `zig build -Dtarget=...`. Each target gets its own pkg-config tree so parallel builds don't clobber each other.
 - `PKG_CONFIG_PATH` must be absolute (cgo runs pkg-config from the go.mitchellh.com/libghostty module directory), hence the `GITHUB_WORKSPACE` template.
 - Cross-linking uses `zig cc -target <triple>` as `CC` per target (see `overrides`).
-- Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=/tmp/zig-x86_64-linux-0.15.2/zig goreleaser release --snapshot --clean`
+- Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=$(command -v zig) goreleaser release --snapshot --clean`
 - `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging.
 - Only Linux targets are currently built; macOS/Windows need per-platform runners (and, for macOS, an SDK).
 
@@ -272,8 +272,8 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## Gotchas
 
-- **libghostty-vt is built from git submodule**: Ghostty source is at `deps/ghostty` (pinned to `cb36966a752982014827a9cabcf630ec3788b3d9`). Run `make build-lib` to compile, or any `make build-*` target which depends on it.
-- **Zig version**: System Zig 0.16.0 is incompatible. Use Zig 0.15.2 (set via `ZIG` make variable, defaults to `/tmp/zig-x86_64-linux-0.15.2/zig`).
+- **libghostty-vt is built from git submodule**: Ghostty source is at `deps/ghostty` (tracking Ghostty `main`). Run `make build-lib` to compile, or any `make build-*` target which depends on it.
+- **Zig version**: Ghostty `main` requires Zig 0.17.0 or newer (older Ghostty pins used 0.15.2). Use the `ZIG` make variable to point at the right binary.
 - **Build command**: `make build-static` (builds libghostty-vt from submodule + compiles Go). Don't use bare `go build`.
 - **`KeyUnknown` doesn't exist**: Use `KeyUnidentified` (value 0) as the zero/unknown sentinel for `libghostty.Key`.
 - **`send_keys` accepts both PascalCase and snake_case key names**: `libghostty.ParseKey` only accepts snake_case (e.g. `tab`, `arrow_down`), but `SendKeys` normalizes W3C PascalCase names (e.g. `Tab`, `ArrowDown`) to snake_case automatically via `normalizeKey()`. Prefer PascalCase in MCP requests.

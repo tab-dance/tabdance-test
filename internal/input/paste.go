@@ -8,7 +8,7 @@ import (
 )
 
 func SendPaste(ptmxWriter io.Writer, term *libghostty.Terminal, text string) error {
-	bracketed, _ := term.ModeGet(libghostty.ModeBracketedPaste)
+	bracketed, _ := term.Mode(libghostty.ModeBracketedPaste)
 
 	encoded, err := libghostty.PasteEncode([]byte(text), bracketed)
 	if err != nil {

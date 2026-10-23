@@ -1,5 +1,5 @@
 GHOSTTY_DIR := deps/ghostty
-ZIG ?= /tmp/zig-x86_64-linux-0.15.2/zig
+ZIG ?= zig
 PKG_CONFIG_PATH := $(GHOSTTY_DIR)/zig-out/share/pkgconfig
 LD_LIBRARY_PATH := $(GHOSTTY_DIR)/zig-out/lib
 BUILD_FLAGS :=

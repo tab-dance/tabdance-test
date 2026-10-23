@@ -61,7 +61,7 @@ func RenderSVG(term *libghostty.Terminal, trim, unwrap bool) (string, error) {
 	cellWidth := float64(widthPx) / float64(cols)
 	cellHeight := float64(heightPx) / float64(rows)
 
-	reverseColors, _ := term.ModeGet(libghostty.ModeReverseColors)
+	reverseColors, _ := term.Mode(libghostty.ModeReverseColors)
 	r := &svgRenderer{
 		term:          term,
 		cols:          cols,

@@ -84,7 +84,7 @@ func BuildJSONView(term *libghostty.Terminal) (*JSONViewResult, error) {
 		}
 	}
 
-	reverseColors, _ := term.ModeGet(libghostty.ModeReverseColors)
+	reverseColors, _ := term.Mode(libghostty.ModeReverseColors)
 
 	cells := make(map[string]jsonCell)
 	for y := uint32(0); y < uint32(rows); y++ {

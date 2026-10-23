@@ -51,7 +51,7 @@ func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
 
 	term, err := libghostty.NewTerminal(
 		libghostty.WithSize(cfg.Cols, cfg.Rows),
-		libghostty.WithMaxScrollback(cfg.Scrollback),
+		libghostty.WithMaxScrollbackLines(cfg.Scrollback),
 		libghostty.WithWritePty(func(_ *libghostty.Terminal, data []byte) {
 			if ptmx != nil {
 				ptmx.Write(data)

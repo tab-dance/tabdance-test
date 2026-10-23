@@ -63,7 +63,7 @@ func GetCell(term *libghostty.Terminal, x uint16, y uint32) (*CellResult, error)
 		result.Text = string(runes)
 	}
 
-	reverseColors, _ := term.ModeGet(libghostty.ModeReverseColors)
+	reverseColors, _ := term.Mode(libghostty.ModeReverseColors)
 
 	if style, err := ref.Style(); err == nil && style != nil {
 		result.Bold = style.Bold()
