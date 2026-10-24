@@ -127,6 +127,7 @@ func parseExtension(kind extKind, rest string, line int) (extension, error) {
 			return ext, fmt.Errorf("ExpectExit code %q is not a number", fields[0])
 		}
 		ext.code = code
+		ext.hasCode = true
 	case extResize:
 		fields := strings.Fields(rest)
 		if len(fields) != 2 {
@@ -219,9 +220,9 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 
 	switch ext.kind {
 	case extWaitExit:
-		return e.waitExit(timeout, -1)
+		return e.waitExit(timeout, 0, false)
 	case extExpectExit:
-		return e.waitExit(timeout, ext.code)
+		return e.waitExit(timeout, ext.code, ext.hasCode)
 	case extWaitStable:
 		quiet := ext.timeout
 		if quiet <= 0 {
@@ -242,12 +243,12 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 
 // waitExit blocks until the child exits. When wantCode >= 0, it also
 // asserts the exit code (signal-exited programs never match).
-func (e *TapeExecutor) waitExit(timeout time.Duration, wantCode int) error {
+func (e *TapeExecutor) waitExit(timeout time.Duration, wantCode int, hasCode bool) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		exited, code, signal := e.terminal.ExitState()
 		if exited {
-			if wantCode < 0 {
+			if !hasCode {
 				return nil
 			}
 			if signal != "" {
@@ -259,7 +260,7 @@ func (e *TapeExecutor) waitExit(timeout time.Duration, wantCode int) error {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return e.timeoutError(fmt.Sprintf("child did not %s within %v", exitWording(wantCode), timeout))
+			return e.timeoutError(fmt.Sprintf("child did not %s within %v", exitWording(wantCode, hasCode), timeout))
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -273,8 +274,8 @@ func (e *TapeExecutor) resize(cols, rows int) error {
 	return nil
 }
 
-func exitWording(wantCode int) string {
-	if wantCode < 0 {
+func exitWording(wantCode int, hasCode bool) string {
+	if !hasCode {
 		return "exit"
 	}
 	return fmt.Sprintf("exit with code %d", wantCode)

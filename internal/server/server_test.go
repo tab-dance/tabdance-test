@@ -332,3 +332,40 @@ func TestGetOutput(t *testing.T) {
 		t.Fatal("expected error result for invalid terminal_id")
 	}
 }
+
+func TestRunTapeReportsExitStatusOnMismatch(t *testing.T) {
+	s := New("test")
+
+	dir := t.TempDir()
+	tapePath := dir + "/exitfail.tape"
+	tapeContent := "Set Shell \"sh\"\n" +
+		"Type \"echo run-exit-fail\"\nEnter\n" +
+		"Wait+Screen /run-exit-fail/\n" +
+		"Type \"exit 3\"\nEnter\n" +
+		"ExpectExit\n"
+	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	goldenPath := dir + "/exitfail.golden"
+	if err := os.WriteFile(goldenPath, []byte("expected\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := s.handleRunTape(context.Background(), makeRequest(map[string]any{
+		"tape_path":   tapePath,
+		"golden_path": goldenPath,
+	}))
+	if err != nil {
+		t.Fatalf("run_tape: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected mismatch + exit code to produce tool error")
+	}
+	tc, ok := result.Content[0].(mcp.TextContent)
+	if !ok {
+		t.Fatalf("expected text content, got %T", result.Content[0])
+	}
+	if !strings.Contains(tc.Text, "child exited with code 3") {
+		t.Fatalf("expected child exit status surfaced, got: %s", tc.Text)
+	}
+}

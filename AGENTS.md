@@ -181,6 +181,7 @@ internal/
     input.go                 # SendText/Keys/Mouse/Focus/Paste, Resize
     inspect.go               # View/Cursor/Size/Cell/RecentOutput
     tapeops.go               # PlayTape, Wait (rich timeout context), Verify/UpdateGolden
+    run_tape.go              # RunTape: shared operation behind CLI `run` and MCP run_tape (bash OSC integration, strict, exit status)
     recording.go             # Start/Stop recording, markers
   daemon/
     protocol.go              # JSON-RPC protocol types (Request, Response, GetBoolDefault helpers)

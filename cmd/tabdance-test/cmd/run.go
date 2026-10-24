@@ -12,9 +12,8 @@ import (
 
 	"github.com/carapace-sh/carapace"
 	"github.com/spf13/cobra"
-	"github.com/tab-dance/tabdance-test/internal/golden"
+	"github.com/tab-dance/tabdance-test/internal/service"
 	"github.com/tab-dance/tabdance-test/internal/tape"
-	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
 var runCmd = &cobra.Command{
@@ -33,9 +32,15 @@ var runCmd = &cobra.Command{
 			return runDirectory(args[0])
 		}
 
-		err = runStrictCheck(args[0])
-		if err == nil {
-			_, err = runTape(args[0], runGoldenPath, runUpdate)
+		if runStrict {
+			if err := runStrictCheck(args[0]); err != nil {
+				fmt.Fprintf(os.Stderr, "%s\n", err)
+				os.Exit(1)
+			}
+		}
+		progress, err := runTape(args[0], runGoldenPath, runUpdate)
+		for _, line := range progress {
+			fmt.Fprintln(os.Stderr, line)
 		}
 		if err != nil && runGoldenPath != "" && !runUpdate {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
@@ -45,11 +50,11 @@ var runCmd = &cobra.Command{
 	},
 }
 
-// runTape plays a single tape and verifies (or updates) its golden file.
-// A verification mismatch is returned as an error whose message is the
-// "FAIL\n<diff>" report; quiet output (PASS/UPDATED, with exit status)
-// is returned via progress so callers render it where they like.
-func runTape(tapePath, goldenPath string, update bool) (progress []string, err error) {
+// runTape plays a single tape, translating package-level run flags into
+// the transport-neutral service operation. A verification mismatch is
+// returned as an error whose message is the "FAIL<diff>" report; PASS/
+// UPDATED lines (with exit status) come back via progress.
+func runTape(tapePath, goldenPath string, update bool) ([]string, error) {
 	env := make(map[string]string)
 	for _, e := range runEnv {
 		k, v, _ := parseKeyValue(e)
@@ -58,110 +63,22 @@ func runTape(tapePath, goldenPath string, update bool) (progress []string, err e
 	if runTerm != "" {
 		env["TERM"] = runTerm
 	}
-	settings, err := tape.ParseSettings(tapePath)
-	if err != nil {
-		return progress, fmt.Errorf("parse tape settings: %w", err)
-	}
 
-	cols := runCols
-	rows := runRows
-	if settings.Width > 0 {
-		cols = settings.Width
-	}
-	if settings.Height > 0 {
-		rows = settings.Height
-	}
-
-	shellCommand := "sh"
-	if settings.Shell != "" {
-		shellCommand = tape.ShellToCommand(settings.Shell)
-	}
-	if shellCommand == "bash --norc --noprofile" && !runNoPromptIntegration {
-		// Inject OSC 133 shell integration via the environment: no rc
-		// files, fully deterministic, and tapes can then synchronize on
-		// real prompt/command markers with WaitPrompt/WaitCommand. The
-		// printf emits escape bytes, not rendered text, so goldens are
-		// unaffected.
-		env["PROMPT_COMMAND"] = `printf '\033]133;D;%s\007\033]133;A\007' "$?"`
-		env["PS0"] = `\033]133;C\007`
-	}
-
-	timeout := time.Duration(runTimeout * float64(time.Second))
-	if settings.WaitTimeout > 0 {
-		timeout = settings.WaitTimeout
-	}
-
-	mt, err := terminal.NewManagedTerminal(fmt.Sprintf("run_%s", strings.TrimSuffix(filepath.Base(tapePath), ".tape")), terminal.CreateConfig{
-		Cols:             uint16(cols),
-		Rows:             uint16(rows),
-		Scrollback:       uint(runScrollback),
-		Command:          shellCommand,
-		Env:              env,
-		WorkingDirectory: runWorkingDir,
+	outcome, err := service.New().RunTape(service.RunTapeOptions{
+		TapePath:          tapePath,
+		GoldenPath:        goldenPath,
+		Update:            update,
+		Strict:            runStrict,
+		Timeout:           time.Duration(runTimeout * float64(time.Second)),
+		Cols:              runCols,
+		Rows:              runRows,
+		Scrollback:        runScrollback,
+		Env:               env,
+		WorkingDirectory:  runWorkingDir,
+		RecordPath:        runRecordPath,
+		PromptIntegration: !runNoPromptIntegration,
 	})
-	if err != nil {
-		return progress, fmt.Errorf("create terminal: %w", err)
-	}
-	defer mt.Close()
-
-	if runRecordPath != "" {
-		if err := mt.StartRecording(runRecordPath, 2.0); err != nil {
-			return progress, fmt.Errorf("start recording: %w", err)
-		}
-	}
-
-	executor := tape.NewTapeExecutor(mt, timeout)
-	if settings.TypingSpeed > 0 {
-		executor.SetTypingSpeed(settings.TypingSpeed)
-	}
-	if err := executor.Execute(tapePath); err != nil {
-		return progress, fmt.Errorf("execute tape: %w", err)
-	}
-
-	mt.StopRecording()
-
-	if goldenPath == "" {
-		return progress, nil
-	}
-
-	if update {
-		mt.Lock()
-		err := golden.UpdateGolden(mt.Terminal, goldenPath, "plain", true, true)
-		mt.Unlock()
-		if err != nil {
-			return progress, err
-		}
-		return append(progress, fmt.Sprintf("UPDATED %s", goldenPath)), nil
-	}
-
-	mt.Lock()
-	result, err := golden.VerifyOutput(mt.Terminal, goldenPath, "plain", true, true)
-	mt.Unlock()
-	if err != nil {
-		return progress, err
-	}
-
-	if result.Match {
-		msg := "PASS"
-		if exited, code, signal := mt.ExitState(); exited {
-			if signal != "" {
-				msg += fmt.Sprintf(" (child killed by %s)", signal)
-			} else {
-				msg += fmt.Sprintf(" (exit=%d)", code)
-			}
-		}
-		return append(progress, msg), nil
-	}
-
-	failMsg := fmt.Sprintf("FAIL\n%s", result.Diff)
-	if _, code, signal := mt.ExitState(); code != 0 || signal != "" {
-		if signal != "" {
-			failMsg += fmt.Sprintf("\n(child killed by %s)", signal)
-		} else {
-			failMsg += fmt.Sprintf("\n(child exited with code %d)", code)
-		}
-	}
-	return progress, fmt.Errorf("%s", failMsg)
+	return outcome.Progress, err
 }
 
 // dirResult carries one tape's outcome in directory mode. Input order is
