@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-tabdance-test (tt) is a CLI tool and MCP server for headless terminal testing using [go-libghostty](https://go.mitchellh.com/libghostty). It exposes two interfaces:
+tabdance-test  is a CLI tool and MCP server for headless terminal testing using [go-libghostty](https://go.mitchellh.com/libghostty). It exposes two interfaces:
 
 1. **CLI** (Cobra + carapace completions) — for local development and CI testing
 2. **MCP server** (stdio) — for AI agent–driven testing

@@ -1,6 +1,6 @@
 # CLI Commands Reference
 
-tabdance-test (tt) exposes a Cobra CLI with carapace shell completions. All commands (except `mcp` and `run`) communicate with a background daemon over a Unix socket.
+tabdance-test exposes a Cobra CLI with carapace shell completions. All commands (except `mcp` and `run`) communicate with a background daemon over a Unix socket.
 
 ## Daemon Architecture
 

@@ -1,8 +1,8 @@
-# tabdance-test (tt)
+# tabdance-test
 
 Headless terminal testing with [go-libghostty](https://go.mitchellh.com/libghostty).
 
-tabdance-test (tt) spins up real terminal emulators (the full Ghostty VT engine,
+tabdance-test spins up real terminal emulators (the full Ghostty VT engine,
 statically linked, no display needed), runs command output and TUI apps inside
 them, and gives you precise, scriptable control: inject keys and mouse events,
 read back the rendered screen (plain text, VT, HTML, SVG, JSON grid), wait for
