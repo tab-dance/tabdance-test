@@ -107,7 +107,7 @@ tt
 ├── inspect <id>                 # Terminal details (--json)
 ├── attach <id>                  # Stream PTY output (Ctrl+C to detach)
 ├── rm <id>                      # Remove/close terminal (hidden `kill` alias kept)
-├── view <id>                    # Print screen content (--format, --json)
+├── view <id>                    # Print screen content (--format, --json; plain when piped, vt on a terminal)
 ├── cursor <id>                  # Print cursor state (--json)
 ├── size <id>                    # Print dimensions (--json)
 ├── cell <id> <x> <y>           # Inspect cell (--json)

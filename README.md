@@ -35,7 +35,8 @@ Requirements: Go 1.26+, Zig, and the `deps/ghostty` git submodule
 tt exec bash
 # e.g. eager_borg
 
-# Inspect it
+# Inspect it (add --format to force; piped output is plain,
+# a terminal run replays the screen with colors as vt)
 tt ls --json
 tt view eager_borg
 tt cursor eager_borg --json

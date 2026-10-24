@@ -44,7 +44,7 @@ tabdance-test (tt) exposes a Cobra CLI with carapace shell completions. All comm
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `view` | `tt view <id>` | Print screen content |
+| `view` | `tt view <id>` | Print screen content (`--format` explicit wins; piped default plain, interactive default vt) |
 | `cursor` | `tt cursor <id>` | Print cursor position and state |
 | `size` | `tt size <id>` | Print terminal dimensions |
 | `cell` | `tt cell <id> <x> <y>` | Inspect specific cell |
