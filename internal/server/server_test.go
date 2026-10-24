@@ -230,6 +230,7 @@ func TestRunTapeUpdateAndVerify(t *testing.T) {
 	dir := t.TempDir()
 	tapePath := dir + "/hello.tape"
 	tapeContent := "Set Shell \"sh\"\n" +
+		"Wait+Screen /\\$/\n" +
 		"Type \"echo run-tape-test\"\nEnter\n" +
 		"Wait /run-tape-test/\n"
 	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
@@ -281,6 +282,7 @@ func TestRunTapeMismatchIsError(t *testing.T) {
 	dir := t.TempDir()
 	tapePath := dir + "/mismatch.tape"
 	tapeContent := "Set Shell \"sh\"\n" +
+		"Wait+Screen /\\$/\n" +
 		"Type \"echo mismatch-test\"\nEnter\n" +
 		"Wait /mismatch-test/\n"
 	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
@@ -339,6 +341,7 @@ func TestRunTapeReportsExitStatusOnMismatch(t *testing.T) {
 	dir := t.TempDir()
 	tapePath := dir + "/exitfail.tape"
 	tapeContent := "Set Shell \"sh\"\n" +
+		"Wait+Screen /\\$/\n" +
 		"Type \"echo run-exit-fail\"\nEnter\n" +
 		"Wait+Screen /run-exit-fail/\n" +
 		"Type \"exit 3\"\nEnter\n" +
