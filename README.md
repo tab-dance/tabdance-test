@@ -13,6 +13,7 @@ Bubble Tea/charm applications end-to-end.
 Two interfaces, same capabilities:
 
 - **CLI** (Cobra + carapace completions) — for local development and CI
+  (completions install via [carapace](https://github.com/carapace-sh/carapace-bin); the cobra-built-in `completion`/`help` commands are disabled to keep the surface honest)
 - **MCP server** (stdio) — for AI agent-driven testing
 
 ## Install
