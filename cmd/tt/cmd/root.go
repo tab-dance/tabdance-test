@@ -6,7 +6,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "tabdance-test",
+	Use:   "tt",
 	Short: "Headless terminal testing using go-libghostty",
 }
 

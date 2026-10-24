@@ -1,10 +1,10 @@
 # Asciinema Recording — Capturing Test Sessions
 
-Reference for asciinema recording in tabdance-test: creating .cast files from headless terminal sessions.
+Reference for asciinema recording in tt: creating .cast files from headless terminal sessions.
 
 ## Overview
 
-tabdance-test can record terminal sessions as asciicast v2 files. This is useful for:
+tt can record terminal sessions as asciicast v2 files. This is useful for:
 - Debugging test failures (replay what happened)
 - Generating documentation
 - Creating visual test artifacts

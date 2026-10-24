@@ -9,7 +9,7 @@ description: >
   "ghostty MCP", "libghostty MCP", "send keys", "retrieve view", "golden file",
   "asciinema recording", "VHS tape", "bubbletea test", "tabdance test", "integration test terminal",
   "tabdance-test exec", "tabdance-test run", "tabdance-test view", "tabdance-test keys",
-  "daemon socket", "terminal daemon".
+  "tt", "daemon socket", "terminal daemon".
 user-invocable: true
 ---
 

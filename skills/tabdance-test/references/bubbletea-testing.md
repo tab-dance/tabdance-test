@@ -1,10 +1,10 @@
 # Bubble Tea Testing — Agent-Driven TUI Testing
 
-Reference for testing Bubble Tea applications using tabdance-test's MCP server.
+Reference for testing Bubble Tea applications using tt's MCP server.
 
 ## Overview
 
-tabdance-test enables AI agents to test Bubble Tea applications by:
+tt enables AI agents to test Bubble Tea applications by:
 1. Launching the app in a headless terminal
 2. Sending key/mouse events
 3. Reading the terminal view
@@ -282,5 +282,5 @@ For complex test flows, use MCP tools for waiting/verification and small VHS tap
 
 - **`reset_terminal` clears VT state, not the child process**: After `reset_terminal`, the shell's readline buffer and prompt state are corrupted. Don't use `reset_terminal` to "start over" — instead `close_terminal` and `create_terminal` a fresh one.
 - **`send_text` sends raw bytes, not escape sequences**: `send_text` with `"\x1b[B"` sends literal characters, not an arrow key. Use `send_keys` with `{"key": "ArrowDown"}` for special keys.
-- **VHS `Screenshot` requires `.png` extension**: The upstream VHS parser rejects non-`.png` paths. In tabdance-test, screenshots are converted to markers anyway — use `add_marker` + `update_golden` instead.
+- **VHS `Screenshot` requires `.png` extension**: The upstream VHS parser rejects non-`.png` paths. In tt, screenshots are converted to markers anyway — use `add_marker` + `update_golden` instead.
 - **`working_directory` sets the child process's cwd**: The terminal itself has no concept of a working directory — this only affects the child process started by `command`.

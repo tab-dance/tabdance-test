@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/tab-dance/tabdance-test/cmd/tabdance-test/cmd"
+	"github.com/tab-dance/tabdance-test/cmd/tt/cmd"
 	"github.com/tab-dance/tabdance-test/internal/daemon"
 	"github.com/tab-dance/tabdance-test/internal/version"
 )

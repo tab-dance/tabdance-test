@@ -1,6 +1,6 @@
 # CLI Commands Reference
 
-tabdance-test exposes a Cobra CLI with carapace shell completions. All commands (except `mcp` and `run`) communicate with a background daemon over a Unix socket.
+tt exposes a Cobra CLI with carapace shell completions. All commands (except `mcp` and `run`) communicate with a background daemon over a Unix socket.
 
 ## Daemon Architecture
 
@@ -20,14 +20,14 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `exec` | `tabdance-test exec <command> [args...]` | Create terminal running command, print ID (use `attach <id>` to stream output) |
-| `ls` | `tabdance-test ls` | List active terminals |
-| `inspect` | `tabdance-test inspect <id>` | Terminal details (size, command, recording, child exit status) |
-| `output` | `tabdance-test output <id> [bytes]` | Print recent raw PTY output (diagnostics) |
-| `doctor` | `tabdance-test doctor` | Environment preflight checks (spawns nothing) |
-| `attach` | `tabdance-test attach <id>` | Stream PTY output (Ctrl+C to detach) |
-| `kill` | `tabdance-test kill <id>` | Hidden alias for `rm` (deprecated) |
-| `rm` | `tabdance-test rm <id>` | Remove/close terminal |
+| `exec` | `tt exec <command> [args...]` | Create terminal running command, print ID (use `attach <id>` to stream output) |
+| `ls` | `tt ls` | List active terminals |
+| `inspect` | `tt inspect <id>` | Terminal details (size, command, recording, child exit status) |
+| `output` | `tt output <id> [bytes]` | Print recent raw PTY output (diagnostics) |
+| `doctor` | `tt doctor` | Environment preflight checks (spawns nothing) |
+| `attach` | `tt attach <id>` | Stream PTY output (Ctrl+C to detach) |
+| `kill` | `tt kill <id>` | Hidden alias for `rm` (deprecated) |
+| `rm` | `tt rm <id>` | Remove/close terminal |
 
 ### `exec` flags
 
@@ -44,10 +44,10 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `view` | `tabdance-test view <id>` | Print screen content |
-| `cursor` | `tabdance-test cursor <id>` | Print cursor position and state |
-| `size` | `tabdance-test size <id>` | Print terminal dimensions |
-| `cell` | `tabdance-test cell <id> <x> <y>` | Inspect specific cell |
+| `view` | `tt view <id>` | Print screen content |
+| `cursor` | `tt cursor <id>` | Print cursor position and state |
+| `size` | `tt size <id>` | Print terminal dimensions |
+| `cell` | `tt cell <id> <x> <y>` | Inspect specific cell |
 
 All inspection commands support `--json` for machine-parseable output.
 
@@ -64,12 +64,12 @@ All inspection commands support `--json` for machine-parseable output.
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `send` | `tabdance-test send <id> <text>` | Send raw text to PTY stdin |
-| `keys` | `tabdance-test keys <id> <key...>` | Send key events (e.g. Enter, Tab, Ctrl+C) |
-| `mouse` | `tabdance-test mouse <id> <action> <button> <x> <y>` | Send mouse event |
-| `paste` | `tabdance-test paste <id> <text>` | Send paste event (bracketed-paste-aware) |
-| `focus` | `tabdance-test focus <id> <gained\|lost>` | Send focus event |
-| `resize` | `tabdance-test resize <id> <cols> <rows>` | Resize terminal |
+| `send` | `tt send <id> <text>` | Send raw text to PTY stdin |
+| `keys` | `tt keys <id> <key...>` | Send key events (e.g. Enter, Tab, Ctrl+C) |
+| `mouse` | `tt mouse <id> <action> <button> <x> <y>` | Send mouse event |
+| `paste` | `tt paste <id> <text>` | Send paste event (bracketed-paste-aware) |
+| `focus` | `tt focus <id> <gained\|lost>` | Send focus event |
+| `resize` | `tt resize <id> <cols> <rows>` | Resize terminal |
 
 ### `mouse` actions
 
@@ -93,9 +93,9 @@ All inspection commands support `--json` for machine-parseable output.
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `tape` | `tabdance-test tape <id> <path>` | Play .tape file in terminal |
-| `record` | `tabdance-test record <id> <path>` | Start asciinema recording (`record <id> --stop` stops it) |
-| `marker` | `tabdance-test marker <id> <label>` | Add recording marker |
+| `tape` | `tt tape <id> <path>` | Play .tape file in terminal |
+| `record` | `tt record <id> <path>` | Start asciinema recording (`record <id> --stop` stops it) |
+| `marker` | `tt marker <id> <label>` | Add recording marker |
 
 ### `tape` flags
 
@@ -113,8 +113,8 @@ All inspection commands support `--json` for machine-parseable output.
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `verify` | `tabdance-test verify <id> <golden>` | Verify output against golden file |
-| `snapshot` | `tabdance-test snapshot <id> <golden>` | Update/create golden file |
+| `verify` | `tt verify <id> <golden>` | Verify output against golden file |
+| `snapshot` | `tt snapshot <id> <golden>` | Update/create golden file |
 
 Both support `--format`, `--trim`, `--unwrap` flags (same as `view`).
 
@@ -122,7 +122,7 @@ Both support `--format`, `--trim`, `--unwrap` flags (same as `view`).
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `wait` | `tabdance-test wait <id> <pattern>` | Wait for regex pattern on screen |
+| `wait` | `tt wait <id> <pattern>` | Wait for regex pattern on screen |
 
 ### `wait` flags
 
@@ -138,7 +138,7 @@ Both support `--format`, `--trim`, `--unwrap` flags (same as `view`).
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `run` | `tabdance-test run <tape>` | Play tape, verify golden, exit 0/1 |
+| `run` | `tt run <tape>` | Play tape, verify golden, exit 0/1 |
 
 ### `run` flags
 
@@ -164,7 +164,7 @@ listed under SKIPPED. Exit code is 1 if any tape failed.
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `mcp` | `tabdance-test mcp` | Start MCP server (stdio) |
+| `mcp` | `tt mcp` | Start MCP server (stdio) |
 
 ## Output Formats
 

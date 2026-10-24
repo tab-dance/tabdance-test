@@ -1,6 +1,6 @@
 # Wait/Poll — Regex-Based Content Matching
 
-Reference for the `wait_for` MCP tool in tabdance-test: polling terminal content until a regex pattern matches.
+Reference for the `wait_for` MCP tool in tt: polling terminal content until a regex pattern matches.
 
 ## Overview
 

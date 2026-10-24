@@ -1,10 +1,10 @@
 # Terminal Lifecycle — Headless Terminal with PTY
 
-Reference for the headless terminal lifecycle in tabdance-test: creation, PTY management, bidirectional communication, and teardown.
+Reference for the headless terminal lifecycle in tt: creation, PTY management, bidirectional communication, and teardown.
 
 ## Overview
 
-tabdance-test creates a go-libghostty `Terminal` for each MCP terminal instance. When a `command` is provided, it also spawns a child process via PTY, creating a full bidirectional terminal session.
+tt creates a go-libghostty `Terminal` for each MCP terminal instance. When a `command` is provided, it also spawns a child process via PTY, creating a full bidirectional terminal session.
 
 ## Terminal Creation
 

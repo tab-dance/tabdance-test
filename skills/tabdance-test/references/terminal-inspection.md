@@ -1,10 +1,10 @@
 # Terminal Inspection — Reading Terminal State
 
-Reference for inspecting headless terminal state in tabdance-test: screen content, cursor, cells, and styles.
+Reference for inspecting headless terminal state in tt: screen content, cursor, cells, and styles.
 
 ## Overview
 
-tabdance-test provides several MCP tools for reading terminal state, all backed by go-libghostty's Formatter, GridRef, and data getter APIs. All Terminal data getters return `(value, error)` tuples.
+tt provides several MCP tools for reading terminal state, all backed by go-libghostty's Formatter, GridRef, and data getter APIs. All Terminal data getters return `(value, error)` tuples.
 
 ## get_view — Full Screen Content
 

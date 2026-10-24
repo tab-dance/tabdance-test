@@ -14,13 +14,13 @@ build-lib:
 
 build-dynamic: build-lib
 	PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) \
-		go build -tags dynamic $(BUILD_FLAGS) -o tabdance-test ./cmd/tabdance-test/
+		go build -tags dynamic $(BUILD_FLAGS) -o tt ./cmd/tt/
 
 build-static: build-lib
-	PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) go build $(BUILD_FLAGS) -o tabdance-test ./cmd/tabdance-test/
+	PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) go build $(BUILD_FLAGS) -o tt ./cmd/tt/
 
 clean:
-	rm -f tabdance-test
+	rm -f tt
 
 test: build-static
 	PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) go test ./...
@@ -35,4 +35,4 @@ vet:
 	go vet ./cmd/... ./pkg/... ./internal/...
 
 run: build-dynamic
-	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) ./tabdance-test
+	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) ./tt

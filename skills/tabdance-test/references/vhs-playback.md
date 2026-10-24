@@ -4,7 +4,7 @@ Reference for playing VHS tape files against headless terminals in tabdance-test
 
 ## Overview
 
-tabdance-test can execute VHS `.tape` files against a headless terminal, translating tape DSL commands to go-libghostty operations. This enables using existing VHS tapes for headless testing without requiring Chromium, ttyd, or ffmpeg.
+tt can execute VHS `.tape` files against a headless terminal, translating tape DSL commands to go-libghostty operations. This enables using existing VHS tapes for headless testing without requiring Chromium, ttyd, or ffmpeg.
 
 For VHS tape DSL and parsing details, see the **vhs** skill.
 
@@ -100,9 +100,9 @@ Key differences from VHS CLI parser API:
 - `parser.New(l)` takes the lexer as argument (not `parser.New()`)
 - `p.Parse()` returns `[]Command` with no error (check `p.Errors()` separately)
 
-## Extension Verbs (tabdance-test additions)
+## Extension Verbs (tt additions)
 
-Lines starting with these four verbs are executed inline by the tabdance-test executor and are NOT part of VHS:
+Lines starting with these four verbs are executed inline by the tt executor and are NOT part of VHS:
 
 | Verb | Meaning |
 |------|---------|
@@ -164,7 +164,7 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 
 ## Advantages Over VHS CLI
 
-| Feature | VHS CLI | tabdance-test Tape Executor |
+| Feature | VHS CLI | tt Tape Executor |
 |---------|---------|------------------------------|
 | Dependencies | Chromium, ttyd, ffmpeg | None |
 | Speed | Seconds (browser startup) | Milliseconds (in-process) |

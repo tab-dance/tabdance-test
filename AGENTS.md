@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-tabdance-test is a CLI tool and MCP server for headless terminal testing using [go-libghostty](https://go.mitchellh.com/libghostty). It exposes two interfaces:
+tt is a CLI tool and MCP server for headless terminal testing using [go-libghostty](https://go.mitchellh.com/libghostty). It exposes two interfaces:
 
 1. **CLI** (Cobra + carapace completions) — for local development and CI testing
 2. **MCP server** (stdio) — for AI agent–driven testing
@@ -33,7 +33,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleas
 - `PKG_CONFIG_PATH` must be absolute (cgo runs pkg-config from the go.mitchellh.com/libghostty module directory), hence the `GITHUB_WORKSPACE` template.
 - Cross-linking uses `zig cc -target <triple>` as `CC` per target (see `overrides`).
 - Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=$(command -v zig) goreleaser release --snapshot --clean`
-- The build injects `-X internal/version.Version={{ .Version }}` so `tabdance-test --version` matches the release tag.
+- The build injects `-X internal/version.Version={{ .Version }}` so `tt --version` matches the release tag.
 - `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging.
 - Only Linux targets are currently built; macOS/Windows need per-platform runners (and, for macOS, an SDK).
 
@@ -42,7 +42,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleas
 ### CLI Mode (daemon-backed)
 
 ```
-CLI client (tabdance-test view, keys, etc.)
+CLI client (tt view, keys, etc.)
   → Unix socket (JSON-RPC)
     → Daemon process (auto-forked, holds TerminalManager)
       → go-libghostty (headless VT terminal)
@@ -57,7 +57,7 @@ CLI client (tabdance-test view, keys, etc.)
 ### CLI Mode (daemon-free, `run` command)
 
 ```
-tabdance-test run tape.tape --golden test.golden
+tt run tape.tape --golden test.golden
   → in-process: create terminal → play tape → verify golden → exit 0/1
 ```
 
@@ -66,15 +66,15 @@ tabdance-test run tape.tape --golden test.golden
 ```
 AI Agent
   → MCP protocol (stdio)
-    → tabdance-test mcp
+    → tt mcp
       → (same internal packages as daemon)
 ```
 
 ### Key flow: daemon auto-start
 
-1. CLI command invoked (e.g. `tabdance-test view eager_borg`)
+1. CLI command invoked (e.g. `tt view eager_borg`)
 2. Client checks if daemon is running (PID file + socket connect)
-3. If not: fork daemon process (`tabdance-test --daemon`), wait for socket
+3. If not: fork daemon process (`tt --daemon`), wait for socket
 4. Connect, send JSON-RPC request, receive response, disconnect
 5. Daemon idles out after 30s with no active terminals or clients
 6. If two clients race to auto-start, `daemon.lock` (flock) makes the loser exit instead of stealing the winner's socket file
@@ -97,7 +97,7 @@ AI Agent
 ## CLI Command Summary
 
 ```
-tabdance-test
+tt
 ├── mcp                          # Start MCP server (stdio)
 ├── exec <command>               # Create terminal, print ID
 │   --cols / --rows / --scrollback / --env / --working-directory / --term
@@ -138,7 +138,7 @@ tabdance-test
 ## Code Organization
 
 ```
-cmd/tabdance-test/
+cmd/tt/
   main.go                    # Entrypoint: --daemon flag, --version (via internal/version)
   cmd/
     root.go                  # Root command var + carapace integration
@@ -314,7 +314,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## Tape Extension Verbs
 
-Lines at the start of a tape line may use seven verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` / `WaitCommand[<code>][@dur]` (OSC 133 semantic markers; `WaitCommand` also asserts the shell-reported exit status; counting semantics: each verb snapshots the marker counter at execution, so exactly one sync point per command — do not chain both verbs on one command), and `Resize <cols> <rows>` (used by the cast2tape converter; applies at the point the line occurs). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
+Lines at the start of a tape line may use seven verbs that tt executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` / `WaitCommand[<code>][@dur]` (OSC 133 semantic markers; `WaitCommand` also asserts the shell-reported exit status; counting semantics: each verb snapshots the marker counter at execution, so exactly one sync point per command — do not chain both verbs on one command), and `Resize <cols> <rows>` (used by the cast2tape converter; applies at the point the line occurs). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
 
 ## Gotchas
 
@@ -373,7 +373,7 @@ Unit tests cover: terminal manager (unique IDs, delete semantics, name-list dedu
 
 - `README.md` — user-facing overview, quickstart, and capability matrix.
 - `AGENTS.md` — this file: contributor/agent reference.
-- `skills/` — Crush skill references (ghostty, asciinema, vhs, tabdance-test).
+- `skills/` — Crush skill references (ghostty, asciinema, vhs, tt).
 
 ## Cross-Project Skills
 

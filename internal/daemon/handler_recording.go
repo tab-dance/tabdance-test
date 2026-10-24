@@ -46,7 +46,7 @@ func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 	sub := mt.Subscribe()
 	defer func() {
 		if dropped := sub.Dropped(); dropped > 0 {
-			fmt.Fprintf(conn, "\n[[tabdance-test: %d bytes of output dropped during attach]]\n", dropped)
+			fmt.Fprintf(conn, "\n[[tt: %d bytes of output dropped during attach]]\n", dropped)
 		}
 		mt.Unsubscribe(sub)
 	}()

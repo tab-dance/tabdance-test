@@ -1,8 +1,8 @@
-# tabdance-test
+# tt
 
 Headless terminal testing with [go-libghostty](https://go.mitchellh.com/libghostty).
 
-tabdance-test spins up real terminal emulators (the full Ghostty VT engine,
+tt spins up real terminal emulators (the full Ghostty VT engine,
 statically linked, no display needed), runs command output and TUI apps inside
 them, and gives you precise, scriptable control: inject keys and mouse events,
 read back the rendered screen (plain text, VT, HTML, SVG, JSON grid), wait for
@@ -31,24 +31,24 @@ Requirements: Go 1.26+, Zig, and the `deps/ghostty` git submodule
 
 ```sh
 # Create a terminal running a command and print its ID
-tabdance-test exec bash
+tt exec bash
 # e.g. eager_borg
 
 # Inspect it
-tabdance-test ls --json
-tabdance-test view eager_borg
-tabdance-test cursor eager_borg --json
+tt ls --json
+tt view eager_borg
+tt cursor eager_borg --json
 
 # Drive it
-tabdance-test send eager_borg "echo hello world"
-tabdance-test keys eager_borg Enter
-tabdance-test wait eager_borg "hello world"
+tt send eager_borg "echo hello world"
+tt keys eager_borg Enter
+tt wait eager_borg "hello world"
 
 # Attach to the live PTY stream (Ctrl+C to detach)
-tabdance-test attach eager_borg
+tt attach eager_borg
 
 # Clean up
-tabdance-test kill eager_borg
+tt kill eager_borg
 ```
 
 Daemon-backed commands (`exec`, `view`, `keys`, ...) auto-start a background
@@ -59,14 +59,14 @@ Override with `TABDANCE_TEST_SOCK` and `TABDANCE_TEST_IDLE_TIMEOUT`.
 
 ```sh
 # Play a VHS tape and verify against a .golden file; exits 0/1
-tabdance-test run tapes/echo.tape --golden tapes/echo.golden
+tt run tapes/echo.tape --golden tapes/echo.golden
 
 # Run every tape in a directory, each against its matching .golden
-tabdance-test run tapes/
+tt run tapes/
 
 # Create/update a golden file from the current terminal state
-tabdance-test snapshot eager_borg golden.txt
-tabdance-test view eager_borg --format json > golden.json
+tt snapshot eager_borg golden.txt
+tt view eager_borg --format json > golden.json
 ```
 
 Tapes support `Set Shell`, `Set Width`, `Set Height`, `Set WaitTimeout`,
@@ -75,7 +75,7 @@ Tapes support `Set Shell`, `Set Width`, `Set Height`, `Set WaitTimeout`,
 ### MCP mode
 
 ```sh
-tabdance-test mcp
+tt mcp
 ```
 
 Connect your MCP client to this stdio server. Available tools: `create_terminal`,
@@ -91,10 +91,10 @@ those built with charmbracelet/bubbletea.
 ### Recording
 
 ```sh
-tabdance-test exec bash --record session.cast        # start recording at creation
-tabdance-test record eager_borg session.cast          # or start later
-tabdance-test marker eager_borg "after login"
-tabdance-test record eager_borg --stop
+tt exec bash --record session.cast        # start recording at creation
+tt record eager_borg session.cast          # or start later
+tt marker eager_borg "after login"
+tt record eager_borg --stop
 ```
 
 Recordings are [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/)
@@ -112,7 +112,7 @@ files, directly playable with `asciinema play`.
 
 ## Commands
 
-Run `tabdance-test --help` for the full list.
+Run `tt --help` for the full list.
 
 ## Development
 

@@ -4,8 +4,8 @@ project_name: tabdance-test
 
 builds:
   - id: tabdance-test
-    main: ./cmd/tabdance-test
-    binary: tabdance-test
+    main: ./cmd/tt
+    binary: tt
     ldflags:
       - -s -w -X github.com/tab-dance/tabdance-test/internal/version.Version={{ .Version }}
     goos:

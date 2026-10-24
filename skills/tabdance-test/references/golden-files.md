@@ -1,6 +1,6 @@
 # Golden Files — Output Verification
 
-Reference for golden file verification in tabdance-test: comparing terminal output against expected content.
+Reference for golden file verification in tt: comparing terminal output against expected content.
 
 ## Overview
 

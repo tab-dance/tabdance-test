@@ -4,7 +4,7 @@ Reference for the MCP tools exposed by tabdance-test.
 
 ## Overview
 
-tabdance-test is an MCP server that provides tools for headless terminal testing. An AI agent uses these tools to create terminals, send input, inspect state, and verify output.
+tt is an MCP server that provides tools for headless terminal testing. An AI agent uses these tools to create terminals, send input, inspect state, and verify output.
 
 ## Tool List
 
@@ -429,4 +429,4 @@ Wait for a pattern to appear on screen.
 - **`send_keys` vs `send_text`**: Use `send_keys` for special keys (arrows, Enter, Tab, Escape, F-keys, modifier combos). Use `send_text` for printable text and commands (faster, simpler). For multi-step key sequences, use a small VHS tape via `play_tape`.
 - **`reset_terminal` clears VT state, not the child process**: After reset, the shell's readline buffer and prompt are corrupted. To start fresh, `close_terminal` and `create_terminal` a new one instead.
 - **`working_directory` sets the child process's cwd**: Only affects the process started by `command`. The terminal itself has no working directory concept.
-- **VHS `Screenshot` requires `.png` extension**: The upstream VHS parser rejects non-`.png` paths. In tabdance-test, screenshots become markers — use `add_marker` + `update_golden` instead.
+- **VHS `Screenshot` requires `.png` extension**: The upstream VHS parser rejects non-`.png` paths. In tt, screenshots become markers — use `add_marker` + `update_golden` instead.
