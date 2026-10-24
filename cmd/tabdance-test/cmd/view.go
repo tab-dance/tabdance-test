@@ -16,7 +16,7 @@ var viewCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := newClient()
 
-		result, err := c.View(args[0], viewFormat, viewTrim, viewUnwrap)
+		result, err := c.View(args[0], outFormat, outTrim, outUnwrap)
 		if err != nil {
 			return err
 		}
@@ -32,22 +32,12 @@ var viewCmd = &cobra.Command{
 	},
 }
 
-var (
-	viewFormat     string
-	viewTrim       bool
-	viewUnwrap     bool
-	viewJsonOutput bool
-)
+var viewJsonOutput bool
 
 func init() {
-	viewCmd.Flags().StringVar(&viewFormat, "format", "plain", "output format: plain, vt, html, svg, json")
-	viewCmd.Flags().BoolVar(&viewTrim, "trim", true, "trim trailing whitespace")
-	viewCmd.Flags().BoolVar(&viewUnwrap, "unwrap", true, "unwrap soft-wrapped lines")
 	viewCmd.Flags().BoolVar(&viewJsonOutput, "json", false, "output as JSON")
+	addOutputFlags(viewCmd, allFormats)
 	rootCmd.AddCommand(viewCmd)
-	carapace.Gen(viewCmd).FlagCompletion(carapace.ActionMap{
-		"format": carapace.ActionValues("plain", "vt", "html", "svg", "json"),
-	})
 	carapace.Gen(viewCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),
 	)

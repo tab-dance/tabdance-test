@@ -94,7 +94,7 @@ those built with charmbracelet/bubbletea.
 tabdance-test exec bash --record session.cast        # start recording at creation
 tabdance-test record eager_borg session.cast          # or start later
 tabdance-test marker eager_borg "after login"
-tabdance-test stop eager_borg
+tabdance-test record eager_borg --stop
 ```
 
 Recordings are [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/)
@@ -108,7 +108,7 @@ files, directly playable with `asciinema play`.
 | Send input | `send`, `keys`, `mouse`, `paste`, `focus`, `resize` | `send_text`, `send_keys`, `send_mouse`, `send_paste`, `send_focus`, `resize` |
 | Inspect state | `view`, `cursor`, `size`, `cell`, `inspect`, `ls` | `get_view`, `get_cursor`, `get_size`, `get_cell`, `list_terminals` |
 | Assert behavior | `wait`, `verify`, `run` | `wait_for`, `verify_output`, `play_tape` |
-| Record | `record`, `stop`, `marker` | `start_recording`, `stop_recording`, `add_marker` |
+| Record | `record` (`--stop`), `marker` | `start_recording`, `stop_recording`, `add_marker` |
 
 ## Commands
 

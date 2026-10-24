@@ -215,8 +215,6 @@ func (d *Daemon) handleRequest(req Request) Response {
 		return d.handleLs(req)
 	case "inspect":
 		return d.handleInspect(req)
-	case "kill":
-		return d.handleKill(req)
 	case "rm":
 		return d.handleRm(req)
 	case "view":

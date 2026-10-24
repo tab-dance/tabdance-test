@@ -21,7 +21,7 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 | `ls` | `tabdance-test ls` | List active terminals |
 | `inspect` | `tabdance-test inspect <id>` | Terminal details (size, command, recording status) |
 | `attach` | `tabdance-test attach <id>` | Stream PTY output (Ctrl+C to detach) |
-| `kill` | `tabdance-test kill <id>` | Kill terminal |
+| `kill` | `tabdance-test kill <id>` | Hidden alias for `rm` (deprecated) |
 | `rm` | `tabdance-test rm <id>` | Remove/close terminal |
 
 ### `exec` flags
@@ -89,8 +89,7 @@ All inspection commands support `--json` for machine-parseable output.
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `tape` | `tabdance-test tape <id> <path>` | Play .tape file in terminal |
-| `record` | `tabdance-test record <id> <path>` | Start asciinema recording |
-| `stop` | `tabdance-test stop <id>` | Stop recording |
+| `record` | `tabdance-test record <id> <path>` | Start asciinema recording (`record <id> --stop` stops it) |
 | `marker` | `tabdance-test marker <id> <label>` | Add recording marker |
 
 ### `tape` flags

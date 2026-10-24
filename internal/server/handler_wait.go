@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -40,6 +41,10 @@ func (s *Server) handleWaitFor(_ context.Context, req mcp.CallToolRequest) (*mcp
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if !result.Found {
+		return mcp.NewToolResultError(fmt.Sprintf("pattern %q not found within %v", pattern, timeout)), nil
 	}
 
 	return mcp.NewToolResultText(result.ToJSON()), nil

@@ -14,7 +14,7 @@ var snapshotCmd = &cobra.Command{
 	Short: "Update or create a golden file with current terminal output",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := newClient().Snapshot(args[0], args[1], snapshotFormat, snapshotTrim, snapshotUnwrap); err != nil {
+		if err := newClient().Snapshot(args[0], args[1], outFormat, outTrim, outUnwrap); err != nil {
 			return err
 		}
 		fmt.Fprintf(os.Stderr, "Golden file updated: %s\n", args[1])
@@ -22,20 +22,9 @@ var snapshotCmd = &cobra.Command{
 	},
 }
 
-var (
-	snapshotFormat string
-	snapshotTrim   bool
-	snapshotUnwrap bool
-)
-
 func init() {
-	snapshotCmd.Flags().StringVar(&snapshotFormat, "format", "plain", "output format: plain, vt, html, svg, json")
-	snapshotCmd.Flags().BoolVar(&snapshotTrim, "trim", true, "trim trailing whitespace")
-	snapshotCmd.Flags().BoolVar(&snapshotUnwrap, "unwrap", true, "unwrap soft-wrapped lines")
+	addOutputFlags(snapshotCmd, allFormats)
 	rootCmd.AddCommand(snapshotCmd)
-	carapace.Gen(snapshotCmd).FlagCompletion(carapace.ActionMap{
-		"format": carapace.ActionValues("plain", "vt", "html", "svg", "json"),
-	})
 	carapace.Gen(snapshotCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),
 		carapace.ActionFiles(),

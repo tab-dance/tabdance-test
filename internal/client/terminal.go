@@ -67,17 +67,6 @@ func (c *Client) Inspect(id string) (map[string]any, error) {
 	return result, nil
 }
 
-func (c *Client) Kill(id string) error {
-	resp, err := c.Call("kill", map[string]any{"id": id})
-	if err != nil {
-		return err
-	}
-	if !resp.OK {
-		return fmt.Errorf("%s", resp.Error)
-	}
-	return nil
-}
-
 func (c *Client) Rm(id string) error {
 	resp, err := c.Call("rm", map[string]any{"id": id})
 	if err != nil {

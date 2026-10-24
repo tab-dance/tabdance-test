@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -77,7 +78,7 @@ func runTape(tapePath, goldenPath string, update bool) error {
 	mt, err := terminal.NewManagedTerminal(fmt.Sprintf("run_%s", strings.TrimSuffix(filepath.Base(tapePath), ".tape")), terminal.CreateConfig{
 		Cols:             uint16(cols),
 		Rows:             uint16(rows),
-		Scrollback:       10000,
+		Scrollback:       uint(runScrollback),
 		Command:          shellCommand,
 		Env:              env,
 		WorkingDirectory: runWorkingDir,
@@ -148,7 +149,7 @@ func runDirectory(dir string) error {
 	}
 	sort.Strings(matches)
 
-	var failed, skipped []string
+	var failed, skipped, passed []string
 	for _, tapePath := range matches {
 		goldenPath := strings.TrimSuffix(tapePath, ".tape") + ".golden"
 		if !runUpdate {
@@ -161,7 +162,18 @@ func runDirectory(dir string) error {
 		if err := runTape(tapePath, goldenPath, runUpdate); err != nil {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 			failed = append(failed, filepath.Base(tapePath))
+		} else {
+			passed = append(passed, filepath.Base(tapePath))
 		}
+	}
+
+	if runJsonOutput {
+		data, _ := json.Marshal(map[string]any{
+			"passed":  passed,
+			"failed":  failed,
+			"skipped": skipped,
+		})
+		fmt.Println(string(data))
 	}
 
 	if len(skipped) > 0 {
@@ -180,10 +192,12 @@ var (
 	runUpdate     bool
 	runCols       int
 	runRows       int
+	runScrollback int
 	runTimeout    float64
 	runRecordPath string
 	runEnv        []string
 	runWorkingDir string
+	runJsonOutput bool
 )
 
 func init() {
@@ -191,10 +205,12 @@ func init() {
 	runCmd.Flags().BoolVar(&runUpdate, "update", false, "update golden file instead of verifying")
 	runCmd.Flags().IntVar(&runCols, "cols", 108, "terminal width in columns")
 	runCmd.Flags().IntVar(&runRows, "rows", 24, "terminal height in rows")
+	runCmd.Flags().IntVar(&runScrollback, "scrollback", 10000, "max scrollback lines")
 	runCmd.Flags().Float64Var(&runTimeout, "timeout", 30, "timeout in seconds for Wait commands")
 	runCmd.Flags().StringVar(&runRecordPath, "record", "", "record session to .cast file")
 	runCmd.Flags().StringArrayVar(&runEnv, "env", nil, "environment variables (key=value, repeatable)")
 	runCmd.Flags().StringVar(&runWorkingDir, "working-directory", "", "working directory for the child process")
+	runCmd.Flags().BoolVar(&runJsonOutput, "json", false, "when running a directory, print the aggregated result as JSON")
 
 	rootCmd.AddCommand(runCmd)
 

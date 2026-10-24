@@ -106,8 +106,7 @@ tabdance-test
 ├── ls                           # List active terminals (--json)
 ├── inspect <id>                 # Terminal details (--json)
 ├── attach <id>                  # Stream PTY output (Ctrl+C to detach)
-├── kill <id>                    # Kill terminal
-├── rm <id>                      # Remove/close terminal
+├── rm <id>                      # Remove/close terminal (hidden `kill` alias kept)
 ├── view <id>                    # Print screen content (--format, --json)
 ├── cursor <id>                  # Print cursor state (--json)
 ├── size <id>                    # Print dimensions (--json)
@@ -119,14 +118,14 @@ tabdance-test
 ├── focus <id> <gained|lost>    # Send focus event
 ├── resize <id> <cols> <rows>   # Resize terminal
 ├── tape <id> <path>            # Play .tape file (--timeout)
-├── wait <id> <pattern>         # Wait for regex (--scope, --timeout)
-├── verify <id> <golden>        # Verify against golden file
+├── wait <id> <pattern>         # Wait for regex (--scope, --timeout, --json, exit 1 on timeout)
+├── verify <id> <golden>        # Verify against golden file (--json, exit 1 on mismatch)
 ├── snapshot <id> <golden>      # Update/create golden file
-├── record <id> <path>          # Start asciinema recording
-├── stop <id>                    # Stop recording
+├── record <id> <path>          # Start asciinema recording (--stop ends it)
 ├── marker <id> <label>          # Add recording marker
 └── run <tape>                   # Daemon-free: play tape, verify, exit 0/1
-    --golden / --update / --cols / --rows / --timeout / --record / --env
+    --golden / --update / --cols / --rows / --scrollback / --timeout
+    --record / --env / --json (per-tape dir summary)
 ```
 
 ## Code Organization
@@ -141,8 +140,7 @@ cmd/tabdance-test/
     ls.go                    # `ls` subcommand
     inspect.go               # `inspect` subcommand
     attach.go                # `attach` subcommand
-    kill.go                  # `kill` subcommand
-    rm.go                    # `rm` subcommand
+    rm.go                    # `rm` subcommand (hidden `kill` alias declared here)
     view.go                  # `view` subcommand
     cursor.go                # `cursor` subcommand
     size.go                  # `size` subcommand
@@ -157,8 +155,8 @@ cmd/tabdance-test/
     wait.go                  # `wait` subcommand
     verify.go                # `verify` subcommand
     snapshot.go              # `snapshot` subcommand
-    record.go                # `record` subcommand
-    stop.go                  # `stop` subcommand
+    record.go                # `record` subcommand (--stop flag)
+    flags.go                 # Shared --format/--trim/--unwrap output flag helper
     marker.go                # `marker` subcommand
     run.go                   # `run` subcommand (daemon-free, in-process runner)
     client.go                # newClient() and parseKeyValue() helpers
@@ -172,7 +170,7 @@ internal/
     protocol.go              # JSON-RPC protocol types (Request, Response, GetBoolDefault helpers)
     daemon.go                # Daemon: socket listener, accept loop, idle timeout, graceful signal shutdown
     lock.go                  # Instance flock guard (daemon.pid.lock) preventing daemon start races
-    handler_terminal.go      # Daemon handlers: exec, ls, inspect, kill, rm
+    handler_terminal.go      # Daemon handlers: exec, ls, inspect, rm
     handler_input.go         # Daemon handlers: send, keys, mouse, paste, focus
     handler_inspect.go       # Daemon handlers: view, cursor, size, cell
     handler_tape.go          # Daemon handlers: resize, tape, wait
@@ -196,7 +194,8 @@ internal/
     handler_inspect.go       # MCP handlers: get_view, get_cell, get_cursor, get_size
     handler_recording.go     # MCP handlers: start_recording, stop_recording, add_marker
     handler_tape.go          # MCP handlers: play_tape
-    handler_golden.go        # MCP handlers: verify_output, update_golden
+    handler_golden.go        # MCP handlers: verify_output (errors on mismatch), update_golden
+    handler_run.go           # MCP handler: run_tape (play + golden verify in one call)
     handler_wait.go          # MCP handlers: wait_for
     server_test.go           # Integration tests
   terminal/
@@ -236,12 +235,12 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## MCP Tool Summary
 
-20 tools registered in `tools.go:registerTools()`:
+21 tools registered in `tools.go:registerTools()`:
 
 || Tool | Input | Output |
 ||------|-------|--------|
 || `create_terminal` | cols, rows, scrollback, command, env, working_directory | terminal_id, cols, rows |
-|| `list_terminals` | — | terminals[] |
+|| `list_terminals` | — | terminals[] (id, cols, rows, command, recording) |
 || `close_terminal` | terminal_id | — |
 || `reset_terminal` | terminal_id | — |
 || `resize` | terminal_id, cols, rows | — |
@@ -258,9 +257,10 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 || `stop_recording` | terminal_id | — |
 || `add_marker` | terminal_id, label | — |
 || `play_tape` | terminal_id, tape_path, timeout | — |
-|| `verify_output` | terminal_id, golden_path, format, trim, unwrap | match, diff |
+| `run_tape` | tape_path, timeout, golden_path, update | success JSON on match; tool error with diff on mismatch |
+|| `verify_output` | terminal_id, golden_path, format, trim, unwrap | JSON match result; tool error with diff on mismatch |
 || `update_golden` | terminal_id, golden_path, format, trim, unwrap | — |
-|| `wait_for` | terminal_id, pattern, scope, timeout, format, trim, unwrap | found, elapsed_ms |
+|| `wait_for` | terminal_id, pattern, scope, timeout, format, trim, unwrap | found, elapsed_ms; tool error on timeout |
 
 ## Conventions & Patterns
 

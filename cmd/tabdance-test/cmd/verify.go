@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -16,9 +17,18 @@ var verifyCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := newClient()
 
-		result, err := c.Verify(args[0], args[1], verifyFormat, verifyTrim, verifyUnwrap)
+		result, err := c.Verify(args[0], args[1], outFormat, outTrim, outUnwrap)
 		if err != nil {
 			return err
+		}
+
+		if verifyJsonOutput {
+			data, _ := json.Marshal(result)
+			fmt.Println(string(data))
+			if !result.Match {
+				os.Exit(1)
+			}
+			return nil
 		}
 
 		if result.Match {
@@ -33,20 +43,12 @@ var verifyCmd = &cobra.Command{
 	},
 }
 
-var (
-	verifyFormat string
-	verifyTrim   bool
-	verifyUnwrap bool
-)
+var verifyJsonOutput bool
 
 func init() {
-	verifyCmd.Flags().StringVar(&verifyFormat, "format", "plain", "output format: plain, vt, html, svg, json")
-	verifyCmd.Flags().BoolVar(&verifyTrim, "trim", true, "trim trailing whitespace")
-	verifyCmd.Flags().BoolVar(&verifyUnwrap, "unwrap", true, "unwrap soft-wrapped lines")
+	verifyCmd.Flags().BoolVar(&verifyJsonOutput, "json", false, "output as JSON")
+	addOutputFlags(verifyCmd, allFormats)
 	rootCmd.AddCommand(verifyCmd)
-	carapace.Gen(verifyCmd).FlagCompletion(carapace.ActionMap{
-		"format": carapace.ActionValues("plain", "vt", "html", "svg", "json"),
-	})
 	carapace.Gen(verifyCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),
 		carapace.ActionFiles(),

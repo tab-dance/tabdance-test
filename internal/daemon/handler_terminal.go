@@ -88,14 +88,6 @@ func (d *Daemon) handleInspect(req Request) Response {
 	})
 }
 
-func (d *Daemon) handleKill(req Request) Response {
-	id := req.GetString("id")
-	if err := d.manager.Delete(id); err != nil {
-		return ErrorResponse(err.Error())
-	}
-	return SuccessResponse(fmt.Sprintf("terminal %q killed", id))
-}
-
 func (d *Daemon) handleRm(req Request) Response {
 	id := req.GetString("id")
 	if err := d.manager.Delete(id); err != nil {

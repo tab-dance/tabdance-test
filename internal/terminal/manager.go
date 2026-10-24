@@ -115,10 +115,11 @@ func (m *TerminalManager) Get(id string) (*ManagedTerminal, error) {
 }
 
 type TerminalInfo struct {
-	ID      string `json:"id"`
-	Cols    uint16 `json:"cols"`
-	Rows    uint16 `json:"rows"`
-	Command string `json:"command"`
+	ID        string `json:"id"`
+	Cols      uint16 `json:"cols"`
+	Rows      uint16 `json:"rows"`
+	Command   string `json:"command"`
+	Recording bool   `json:"recording"`
 }
 
 func (m *TerminalManager) List() []TerminalInfo {
@@ -129,10 +130,11 @@ func (m *TerminalManager) List() []TerminalInfo {
 	for _, mt := range m.terminals {
 		mt.mu.Lock()
 		infos = append(infos, TerminalInfo{
-			ID:      mt.ID,
-			Cols:    mt.Cols,
-			Rows:    mt.Rows,
-			Command: mt.Command,
+			ID:        mt.ID,
+			Cols:      mt.Cols,
+			Rows:      mt.Rows,
+			Command:   mt.Command,
+			Recording: mt.Recorder != nil,
 		})
 		mt.mu.Unlock()
 	}

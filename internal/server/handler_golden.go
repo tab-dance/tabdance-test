@@ -36,6 +36,10 @@ func (s *Server) handleVerifyOutput(_ context.Context, req mcp.CallToolRequest) 
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	if !result.Match {
+		return mcp.NewToolResultError(fmt.Sprintf("output does not match golden file %s\n%s", goldenPath, result.Diff)), nil
+	}
+
 	return mcp.NewToolResultText(result.ToJSON()), nil
 }
 

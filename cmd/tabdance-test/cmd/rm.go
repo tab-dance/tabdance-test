@@ -21,8 +21,17 @@ var rmCmd = &cobra.Command{
 	},
 }
 
+var killCmd = &cobra.Command{
+	Use:    "kill <id>",
+	Short:  "Alias for rm (deprecated)",
+	Hidden: true,
+	Args:   cobra.ExactArgs(1),
+	RunE:   rmCmd.RunE,
+}
+
 func init() {
 	rootCmd.AddCommand(rmCmd)
+	rootCmd.AddCommand(killCmd)
 	carapace.Gen(rmCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),
 	)

@@ -16,7 +16,7 @@ func (s *Server) registerTools() {
 	), s.handleCreateTerminal)
 
 	s.mcp.AddTool(mcp.NewTool("list_terminals",
-		mcp.WithDescription("List all active terminals"),
+		mcp.WithDescription("List all active terminals, including whether each is recording"),
 	), s.handleListTerminals)
 
 	s.mcp.AddTool(mcp.NewTool("close_terminal",
@@ -49,10 +49,12 @@ func (s *Server) registerTools() {
 	), s.handleSendText)
 
 	s.mcp.AddTool(mcp.NewTool("send_mouse",
-		mcp.WithDescription("Send mouse events to a terminal"),
+		mcp.WithDescription("Send mouse events to a terminal. scroll_up/scroll_down are translated to button 4/5 press+release sequences."),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
-		mcp.WithString("action", mcp.Required(), mcp.Description("Mouse action: press, release, move")),
-		mcp.WithString("button", mcp.Required(), mcp.Description("Mouse button: left, middle, right")),
+		mcp.WithString("action", mcp.Required(), mcp.Description("Mouse action"),
+			mcp.Enum("press", "release", "move", "scroll_up", "scroll_down")),
+		mcp.WithString("button", mcp.Required(), mcp.Description("Mouse button: left, middle, right"),
+			mcp.Enum("left", "middle", "right")),
 		mcp.WithNumber("x", mcp.Required(), mcp.Description("X position")),
 		mcp.WithNumber("y", mcp.Required(), mcp.Description("Y position")),
 		mcp.WithString("mods", mcp.Description("Modifiers: ctrl, alt, shift, super (combinable with +)")),
@@ -61,7 +63,8 @@ func (s *Server) registerTools() {
 	s.mcp.AddTool(mcp.NewTool("send_focus",
 		mcp.WithDescription("Send focus event to a terminal"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
-		mcp.WithString("event", mcp.Required(), mcp.Description("Focus event: gained or lost")),
+		mcp.WithString("event", mcp.Required(), mcp.Description("Focus event"),
+			mcp.Enum("gained", "lost")),
 	), s.handleSendFocus)
 
 	s.mcp.AddTool(mcp.NewTool("send_paste",
@@ -73,7 +76,8 @@ func (s *Server) registerTools() {
 	s.mcp.AddTool(mcp.NewTool("get_view",
 		mcp.WithDescription("Get the current terminal view as plain text, VT, HTML, SVG, or JSON"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format (default: plain)"),
+			mcp.Enum("plain", "vt", "html", "svg", "json")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleGetView)
@@ -120,11 +124,20 @@ func (s *Server) registerTools() {
 		mcp.WithNumber("timeout", mcp.Description("Timeout in seconds for Wait commands (default: 30)")),
 	), s.handlePlayTape)
 
+	s.mcp.AddTool(mcp.NewTool("run_tape",
+		mcp.WithDescription("The `run` command: create a fresh terminal from the tape's Set Shell/Width/Height settings, play the tape, optionally verify (or update) a golden file, and close the terminal. Verification failures return a tool error containing the diff."),
+		mcp.WithString("tape_path", mcp.Required(), mcp.Description("Path to the .tape file")),
+		mcp.WithNumber("timeout", mcp.Description("Timeout in seconds for Wait commands (default: 30)")),
+		mcp.WithString("golden_path", mcp.Description("Golden file to verify against (no verification when omitted)")),
+		mcp.WithBoolean("update", mcp.Description("Update the golden file instead of verifying (default: false)")),
+	), s.handleRunTape)
+
 	s.mcp.AddTool(mcp.NewTool("verify_output",
-		mcp.WithDescription("Verify terminal output against a golden file. Returns match status and diff on mismatch."),
+		mcp.WithDescription("Verify terminal output against a golden file. A mismatch returns a tool error containing the diff; a match returns the JSON result."),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 		mcp.WithString("golden_path", mcp.Required(), mcp.Description("Path to the golden file")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format (default: plain)"),
+			mcp.Enum("plain", "vt", "html", "svg", "json")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleVerifyOutput)
@@ -133,18 +146,21 @@ func (s *Server) registerTools() {
 		mcp.WithDescription("Update (or create) a golden file with the current terminal output"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 		mcp.WithString("golden_path", mcp.Required(), mcp.Description("Path to the golden file")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format (default: plain)"),
+			mcp.Enum("plain", "vt", "html", "svg", "json")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleUpdateGolden)
 
 	s.mcp.AddTool(mcp.NewTool("wait_for",
-		mcp.WithDescription("Poll terminal output until a regex pattern matches or timeout"),
+		mcp.WithDescription("Poll terminal output until a regex pattern matches, or return a tool error on timeout"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 		mcp.WithString("pattern", mcp.Required(), mcp.Description("Regex pattern to match")),
-		mcp.WithString("scope", mcp.Description("Match scope: screen (default) or line")),
+		mcp.WithString("scope", mcp.Description("Match scope (default: screen)"),
+			mcp.Enum("screen", "line")),
 		mcp.WithNumber("timeout", mcp.Description("Timeout in seconds (default: 10)")),
-		mcp.WithString("format", mcp.Description("Output format: plain, vt, html, svg, json (default: plain)")),
+		mcp.WithString("format", mcp.Description("Output format (default: plain)"),
+			mcp.Enum("plain", "vt", "html")),
 		mcp.WithBoolean("trim", mcp.Description("Trim trailing whitespace (default: true)")),
 		mcp.WithBoolean("unwrap", mcp.Description("Unwrap soft-wrapped lines (default: true)")),
 	), s.handleWaitFor)

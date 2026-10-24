@@ -1,0 +1,95 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/tab-dance/tabdance-test/internal/golden"
+	"github.com/tab-dance/tabdance-test/internal/tape"
+	"github.com/tab-dance/tabdance-test/internal/terminal"
+)
+
+// handleRunTape is the MCP equivalent of the CLI `run` command: it creates a
+// fresh terminal honoring the tape's Set Shell/Width/Height/WaitTimeout/
+// TypingSpeed settings, plays the tape, optionally verifies (or updates) a
+// golden file, and tears the terminal down again.
+func (s *Server) handleRunTape(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	tapePath, err := req.RequireString("tape_path")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	timeout := time.Duration(req.GetInt("timeout", 30)) * time.Second
+	goldenPath := req.GetString("golden_path", "")
+	update := req.GetBool("update", false)
+
+	settings, err := tape.ParseSettings(tapePath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("parse tape settings: %v", err)), nil
+	}
+
+	cols := 108
+	rows := 24
+	if settings.Width > 0 {
+		cols = settings.Width
+	}
+	if settings.Height > 0 {
+		rows = settings.Height
+	}
+	if settings.WaitTimeout > 0 {
+		timeout = settings.WaitTimeout
+	}
+	shellCommand := "sh"
+	if settings.Shell != "" {
+		shellCommand = tape.ShellToCommand(settings.Shell)
+	}
+
+	mt, err := s.terminals.Create(terminal.CreateConfig{
+		Cols:       uint16(cols),
+		Rows:       uint16(rows),
+		Scrollback: 10000,
+		Command:    shellCommand,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer s.terminals.Delete(mt.ID)
+
+	executor := tape.NewTapeExecutor(mt, timeout)
+	if settings.TypingSpeed > 0 {
+		executor.SetTypingSpeed(settings.TypingSpeed)
+	}
+	if err := executor.Execute(tapePath); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("execute tape: %v", err)), nil
+	}
+
+	if goldenPath == "" {
+		return mcp.NewToolResultText(fmt.Sprintf("tape %q executed", tapePath)), nil
+	}
+
+	mt.Lock()
+	var result *golden.VerifyResult
+	if update {
+		err = golden.UpdateGolden(mt.Terminal, goldenPath, "plain", true, true)
+	} else {
+		result, err = golden.VerifyOutput(mt.Terminal, goldenPath, "plain", true, true)
+	}
+	mt.Unlock()
+
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if update {
+		return mcp.NewToolResultText(fmt.Sprintf("golden file %q updated", goldenPath)), nil
+	}
+
+	if !result.Match {
+		return mcp.NewToolResultError(fmt.Sprintf("FAIL\n%s", result.Diff)), nil
+	}
+
+	data, _ := json.Marshal(result)
+	return mcp.NewToolResultText(string(data)), nil
+}

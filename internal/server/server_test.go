@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -210,15 +212,94 @@ func TestVerifyOutputNoGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify output: %v", err)
 	}
+	if !verifyResult.IsError {
+		t.Fatal("expected mismatch (missing golden) to surface as a tool error")
+	}
+	tc, ok := verifyResult.Content[0].(mcp.TextContent)
+	if !ok {
+		t.Fatalf("expected text content, got %T", verifyResult.Content[0])
+	}
+	if !strings.Contains(tc.Text, "does not exist") {
+		t.Fatalf("expected missing-golden message, got %q", tc.Text)
+	}
+}
 
+func TestRunTapeUpdateAndVerify(t *testing.T) {
+	s := New("test")
+
+	dir := t.TempDir()
+	tapePath := dir + "/hello.tape"
+	tapeContent := "Set Shell \"sh\"\n" +
+		"Type \"echo run-tape-test\"\nEnter\n" +
+		"Wait /run-tape-test/\n"
+	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	goldenPath := dir + "/hello.golden"
+
+	updateResult, err := s.handleRunTape(context.Background(), makeRequest(map[string]any{
+		"tape_path":   tapePath,
+		"golden_path": goldenPath,
+		"update":      true,
+	}))
+	if err != nil {
+		t.Fatalf("run_tape update: %v", err)
+	}
+	if updateResult.IsError {
+		tc, _ := updateResult.Content[0].(mcp.TextContent)
+		t.Fatalf("run_tape update returned error: %s", tc.Text)
+	}
+	if _, err := os.Stat(goldenPath); err != nil {
+		t.Fatalf("expected golden file to be created: %v", err)
+	}
+
+	verifyResult, err := s.handleRunTape(context.Background(), makeRequest(map[string]any{
+		"tape_path":   tapePath,
+		"golden_path": goldenPath,
+	}))
+	if err != nil {
+		t.Fatalf("run_tape verify: %v", err)
+	}
+	if verifyResult.IsError {
+		tc, _ := verifyResult.Content[0].(mcp.TextContent)
+		t.Fatalf("run_tape verify returned error: %s", tc.Text)
+	}
 	var verifyResp struct {
 		Match bool `json:"match"`
 	}
 	if err := parseResult(verifyResult, &verifyResp); err != nil {
-		t.Fatalf("parse verify result: %v", err)
+		t.Fatalf("parse run_tape verify result: %v (raw: %v)", err, verifyResult)
 	}
-	if verifyResp.Match {
-		t.Fatal("expected no match for nonexistent golden file")
+	if !verifyResp.Match {
+		t.Fatal("expected replay of exactly-written tape to match golden")
+	}
+}
+
+func TestRunTapeMismatchIsError(t *testing.T) {
+	s := New("test")
+
+	dir := t.TempDir()
+	tapePath := dir + "/mismatch.tape"
+	tapeContent := "Set Shell \"sh\"\n" +
+		"Type \"echo mismatch-test\"\nEnter\n" +
+		"Wait /mismatch-test/\n"
+	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	goldenPath := dir + "/mismatch.golden"
+	if err := os.WriteFile(goldenPath, []byte("expected-different-content\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := s.handleRunTape(context.Background(), makeRequest(map[string]any{
+		"tape_path":   tapePath,
+		"golden_path": goldenPath,
+	}))
+	if err != nil {
+		t.Fatalf("run_tape: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected verification mismatch to surface as a tool error")
 	}
 }
 

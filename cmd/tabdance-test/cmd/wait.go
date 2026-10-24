@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -16,9 +17,18 @@ var waitCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := newClient()
 
-		result, err := c.Wait(args[0], args[1], waitScope, waitTimeout, waitFormat, waitTrim, waitUnwrap)
+		result, err := c.Wait(args[0], args[1], waitScope, waitTimeout, outFormat, outTrim, outUnwrap)
 		if err != nil {
 			return err
+		}
+
+		if waitJsonOutput {
+			data, _ := json.Marshal(result)
+			fmt.Println(string(data))
+			if !result.Found {
+				os.Exit(1)
+			}
+			return nil
 		}
 
 		if result.Found {
@@ -33,23 +43,19 @@ var waitCmd = &cobra.Command{
 }
 
 var (
-	waitScope   string
-	waitTimeout float64
-	waitFormat  string
-	waitTrim    bool
-	waitUnwrap  bool
+	waitScope      string
+	waitTimeout    float64
+	waitJsonOutput bool
 )
 
 func init() {
 	waitCmd.Flags().StringVar(&waitScope, "scope", "screen", "match scope: screen or line")
 	waitCmd.Flags().Float64Var(&waitTimeout, "timeout", 10, "timeout in seconds")
-	waitCmd.Flags().StringVar(&waitFormat, "format", "plain", "output format: plain, vt, html")
-	waitCmd.Flags().BoolVar(&waitTrim, "trim", true, "trim trailing whitespace")
-	waitCmd.Flags().BoolVar(&waitUnwrap, "unwrap", true, "unwrap soft-wrapped lines")
+	waitCmd.Flags().BoolVar(&waitJsonOutput, "json", false, "output as JSON")
+	addOutputFlags(waitCmd, textFormats)
 	rootCmd.AddCommand(waitCmd)
 	carapace.Gen(waitCmd).FlagCompletion(carapace.ActionMap{
-		"scope":  carapace.ActionValues("screen", "line"),
-		"format": carapace.ActionValues("plain", "vt", "html"),
+		"scope": carapace.ActionValues("screen", "line"),
 	})
 	carapace.Gen(waitCmd).PositionalCompletion(
 		actions.ActionTerminalIDs(),

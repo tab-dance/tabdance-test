@@ -319,6 +319,22 @@ Execute a VHS tape file against a terminal.
 }
 ```
 
+#### `run_tape`
+
+The `run` command as a tool: creates a fresh terminal from the tape's `Set Shell`/`Set Width`/`Set Height` settings, plays the tape, optionally verifies (or updates) a golden file, then closes the terminal.
+
+**Input:**
+```json
+{
+  "tape_path": "test.tape",
+  "timeout": 30,
+  "golden_path": "testdata/golden.txt",
+  "update": false
+}
+```
+
+**Output on match:** `{"match": true}` - **On mismatch:** tool error with the unified diff - **Without `golden_path`:** `tape "test.tape" executed`
+
 ### Golden File Verification
 
 #### `verify_output`
@@ -341,12 +357,14 @@ Verify terminal output against a golden file.
 {"match": true}
 ```
 
-**Output on mismatch:**
-```json
-{
-  "match": false,
-  "diff": "--- golden\n+++ actual\n@@ -1 +1 @@\n-expected output\n+actual output\n"
-}
+**On mismatch:** a tool error (IsError result) whose text starts with the golden path, followed by the unified diff:
+```
+output does not match golden file testdata/golden.txt
+--- golden
++++ actual
+@@ -1 +1 @@
+-expected output
++actual output
 ```
 
 #### `update_golden`
@@ -390,13 +408,7 @@ Wait for a pattern to appear on screen.
 }
 ```
 
-**Output on timeout:**
-```json
-{
-  "found": false,
-  "elapsed_ms": 15000
-}
-```
+**On timeout:** a tool error: `pattern "regex pattern" not found within 15s`
 
 ## Common Pitfalls
 

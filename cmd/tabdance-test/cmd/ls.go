@@ -30,9 +30,13 @@ var lsCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tCOLS\tROWS\tCOMMAND")
+		fmt.Fprintln(w, "ID\tCOLS\tROWS\tRECORDING\tCOMMAND")
 		for _, info := range infos {
-			fmt.Fprintf(w, "%s\t%d\t%d\t%s\n", info.ID, info.Cols, info.Rows, info.Command)
+			rec := "-"
+			if info.Recording {
+				rec = "yes"
+			}
+			fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\n", info.ID, info.Cols, info.Rows, rec, info.Command)
 		}
 		w.Flush()
 		return nil
