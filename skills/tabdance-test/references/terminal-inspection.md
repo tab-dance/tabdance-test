@@ -35,12 +35,8 @@ func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*View
     cursorVisible, _ := term.CursorVisible()
     screen, _ := term.ActiveScreen()
 
-    styleStr := "bar"
-    if cs, err := term.CursorStyle(); err == nil && cs != nil {
-        if cs.Bold() {
-            styleStr = "block"
-        }
-    }
+    styleStr := cursorStyleString(term)  // RenderState.CursorVisualStyle():
+                                         // "bar" | "block" | "underline" | "block_hollow"
 
     return &ViewResult{
         Content:       content,
@@ -140,14 +136,7 @@ func GetCursor(term *libghostty.Terminal) *CursorResult {
     visible, _ := term.CursorVisible()
     pendingWrap, _ := term.CursorPendingWrap()
 
-    styleStr := "bar"
-    if cs, err := term.CursorStyle(); err == nil && cs != nil {
-        if cs.Bold() {
-            styleStr = "block"
-        }
-    }
-
-    return &CursorResult{X: x, Y: y, Visible: visible, PendingWrap: pendingWrap, Style: styleStr}
+    return &CursorResult{X: x, Y: y, Visible: visible, PendingWrap: pendingWrap, Style: cursorStyleString(term)}
 }
 ```
 

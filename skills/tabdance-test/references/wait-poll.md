@@ -4,7 +4,7 @@ Reference for the `wait_for` MCP tool in tabdance-test: polling terminal content
 
 ## Overview
 
-The `wait_for` tool polls terminal content at 50ms intervals until a regex pattern matches or the timeout expires. This is essential for testing async applications where rendering takes time.
+The `wait_for` tool polls terminal content at 50ms intervals until a regex pattern matches or the timeout expires; a timeout returns a tool error (`pattern ... not found within ...`), a match returns the JSON result. This is essential for testing async applications where rendering takes time.
 
 ## WaitFor
 
@@ -25,34 +25,38 @@ type WaitForResult struct {
     ElapsedMs int64
 }
 
-func WaitFor(terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult, error) {
-    re, _ := regexp.Compile(opts.Pattern)
+func WaitFor(mu sync.Locker, terminal *libghostty.Terminal, opts WaitForOptions) (*WaitForResult, error) {
+  re, _ := regexp.Compile(opts.Pattern)
 
-    start := time.Now()
-    deadline := start.Add(opts.Timeout)
+  start := time.Now()
+  deadline := start.Add(opts.Timeout)
 
-    for time.Now().Before(deadline) {
-        content, _ := getTerminalContent(terminal, opts.Format, opts.Trim, opts.Unwrap)
+  for time.Now().Before(deadline) {
+    mu.Lock()
+    content, _ := getTerminalContent(terminal, opts.Format, opts.Trim, opts.Unwrap)
+    mu.Unlock()
 
-        switch opts.Scope {
-        case "line", "+Line":
-            cursorY, _ := terminal.CursorY()
-            lines := strings.Split(content, "\n")
-            if int(cursorY) < len(lines) && re.MatchString(lines[cursorY]) {
-                elapsed := time.Since(start)
-                return &WaitForResult{Found: true, MatchLine: lines[cursorY], ElapsedMs: elapsed.Milliseconds()}, nil
-            }
-        default:
-            if re.MatchString(content) {
-                elapsed := time.Since(start)
-                return &WaitForResult{Found: true, ElapsedMs: elapsed.Milliseconds()}, nil
-            }
-        }
-
-        time.Sleep(50 * time.Millisecond)
+    switch normalizeScope(opts.Scope) { // case-insensitive: "screen"/"Line"/"+line" etc.
+    case "line":
+      mu.Lock()
+      cursorY, _ := terminal.CursorY()
+      mu.Unlock()
+      lines := strings.Split(content, "\n")
+      if int(cursorY) < len(lines) && re.MatchString(lines[cursorY]) {
+        elapsed := time.Since(start)
+        return &WaitForResult{Found: true, MatchLine: lines[cursorY], ElapsedMs: elapsed.Milliseconds()}, nil
+      }
+    default:
+      if re.MatchString(content) {
+        elapsed := time.Since(start)
+        return &WaitForResult{Found: true, ElapsedMs: elapsed.Milliseconds()}, nil
+      }
     }
 
-    return &WaitForResult{Found: false, ElapsedMs: opts.Timeout.Milliseconds()}, nil
+    time.Sleep(opts.PollInterval)
+  }
+
+  return &WaitForResult{Found: false, ElapsedMs: opts.Timeout.Milliseconds()}, nil
 }
 ```
 
@@ -105,6 +109,12 @@ Response:
 |-------|----------------|
 | `screen` (default) | Full terminal content (all visible lines) |
 | `line` | Only the line at the current cursor Y position |
+
+Scope names are normalized case-insensitively (`Line`, `+line`, `+Line` all mean `line`), and unknown scopes fall back to `screen`. Both the MCP `wait_for` tool and tape `Wait` commands share this one poll implementation.
+
+### Chain with run_tape
+
+Instead of hand-orchestrating wait + verify against your own terminal, `run_tape` does the whole loop: `tape_path` (+ optional `golden_path`/`update`), fresh terminal from the tape's Set settings, close after. Verify failures come back as tool errors containing the diff.
 
 ## Common Patterns
 

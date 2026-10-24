@@ -37,13 +37,13 @@ Create a new headless terminal, optionally running a child process.
 
 #### `list_terminals`
 
-List all active terminals.
+List all active terminals, including recording status.
 
 **Output:**
 ```json
 {
   "terminals": [
-    {"id": "term_1", "cols": 108, "rows": 24, "command": "bash"}
+    {"id": "bold_sutherland", "cols": 108, "rows": 24, "command": "bash", "recording": true}
   ]
 }
 ```

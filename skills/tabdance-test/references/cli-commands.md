@@ -5,9 +5,10 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 ## Daemon Architecture
 
 - **Auto-start**: Daemon forks automatically on first CLI command if not running
-- **Socket**: `~/.local/share/tabdance-test/daemon.sock` (override: `TABDANCE_TEST_SOCK`)
-- **PID file**: `~/.local/share/tabdance-test/daemon.pid`
+- **Socket**: `~/.local/share/tabdance-test/daemon.sock` (override: `TABDANCE_TEST_SOCK`); dir 0700, socket 0600
+- **PID file**: `~/.local/share/tabdance-test/daemon.pid`, plus `daemon.pid.lock` (flock, prevents start races)
 - **Idle timeout**: 30s after last terminal closed and no client connected (override: `TABDANCE_TEST_IDLE_TIMEOUT`)
+- **Shutdown**: SIGINT/SIGTERM remove socket + pid files and close all terminals
 - **Protocol**: JSON-RPC over Unix socket (one JSON line per request/response)
 - **`run` command is daemon-free**: Creates terminal in-process, no socket needed
 
@@ -143,10 +144,16 @@ Both support `--format`, `--trim`, `--unwrap` flags (same as `view`).
 | `--update` | false | Update golden file instead of verifying |
 | `--cols` | 108 | Terminal width |
 | `--rows` | 24 | Terminal height |
+| `--scrollback` | 10000 | Max scrollback lines |
 | `--timeout` | 30 | Timeout in seconds for Wait commands |
 | `--record` | (none) | Record session to .cast file |
 | `--env` | (none) | Environment variables (key=value, repeatable) |
 | `--working-directory` | (none) | Working directory |
+| `--json` | false | Directory runs: print {passed,failed,skipped} JSON summary |
+
+Directory receipts: running a directory verifies each `*.tape` against its
+matching `.golden`; without `--update`, tapes that have no golden yet are
+listed under SKIPPED. Exit code is 1 if any tape failed.
 
 ### MCP
 
@@ -157,15 +164,18 @@ Both support `--format`, `--trim`, `--unwrap` flags (same as `view`).
 ## Output Formats
 
 - **Human-readable** (default): tables, plain text, key=value pairs
-- **`--json`**: JSON objects for scripting (pipe into `jq`)
+- **`--json`**: JSON objects for scripting (pipe into `jq`); available on `ls`, `inspect`, `view`, `cursor`, `size`, `cell`, `wait`, `verify`, and directory `run`
 
 ### `ls` human-readable output
 
 ```
-ID       COLS  ROWS  COMMAND
-term_1   108   24    bash
-term_2   80    24    vim test.go
+ID                  COLS  ROWS  RECORDING  COMMAND
+bold_sutherland     108   24    yes        bash
+reverent_hertz      80    24    -          vim test.go
 ```
+
+Terminal IDs are collision-checked random adjective+noun names; you can
+always inspect `ls --json` for the authoritative list.
 
 ### `view` human-readable output
 
@@ -196,7 +206,7 @@ Dynamic completions are registered for:
 - **Terminal IDs**: All commands taking `<id>` query the daemon for active terminals
 - **Key names**: `keys` command completes PascalCase key names
 - **Mouse actions/buttons**: `mouse` command
-- **Format values**: `view`, `verify`, `snapshot`, `wait` complete `plain`/`vt`/`html`
+- **Format values**: `view`/`verify`/`snapshot` complete `plain`/`vt`/`html`/`svg`/`json`; `wait` completes `plain`/`vt`/`html` (its poller only reads rendered text)
 - **Scope values**: `wait` completes `screen`/`line`
 - **Focus events**: `focus` completes `gained`/`lost`
 - **File paths**: `.tape` files for `tape`/`run`, `.cast` for `record`, any file for `verify`/`snapshot`

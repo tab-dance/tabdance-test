@@ -22,13 +22,18 @@ Use for: testing VT output without a running process, replaying recordings, snap
 ### With PTY (Full Session)
 
 ```go
-// Create terminal with PTY write callback
-var ptyOut bytes.Buffer
+// Create terminal with PTY write callback. The callback writes responses to
+// shell capability queries (cursor position, device attributes, ...) straight
+// to the PTY during VTWrite: an asynchronous write loop races the shell's
+// rendering state machine and produces nondeterministic output.
+var ptmx atomic.Pointer[os.File]
 term, _ := libghostty.NewTerminal(
     libghostty.WithSize(cols, rows),
     libghostty.WithMaxScrollback(scrollback),
     libghostty.WithWritePty(func(_ *libghostty.Terminal, data []byte) {
-        ptyOut.Write(data)
+        if f := ptmx.Load(); f != nil {
+            f.Write(data)
+        }
     }),
 )
 
@@ -43,18 +48,22 @@ cmd := exec.Command("sh", "-c", command)
 cmd.Env = append(os.Environ(), envPairs...)
 cmd.Dir = workingDirectory
 
-ptmx, _ := pty.StartWithSize(cmd, &pty.Winsize{
+ptmxFile, _ := pty.StartWithSize(cmd, &pty.Winsize{
     Cols: uint16(cols),
     Rows: uint16(rows),
 })
+ptmx.Store(ptmxFile)
+
+// Reap the child so it never outlives the session as a zombie
+go cmd.Wait()
 
 // Bidirectional bridge:
-//   child stdout → term.VTWrite()
-//   term PTY responses → child stdin
+//   child stdout → term.VTWrite() (+ recorder + subscribers)
+//   term PTY responses → child stdin (synchronously via WritePty callback)
 go func() {
     buf := make([]byte, 4096)
     for {
-        n, err := ptmx.Read(buf)
+        n, err := ptmxFile.Read(buf)
         if err != nil { break }
         m.mu.Lock()
         term.VTWrite(buf[:n])
@@ -62,16 +71,6 @@ go func() {
             m.Recorder.WriteOutput(buf[:n])
         }
         m.mu.Unlock()
-    }
-}()
-go func() {
-    buf := make([]byte, 4096)
-    for {
-        n, err := ptyOut.Read(buf)
-        if err != nil { break }
-        if ptmx != nil {
-            ptmx.Write(buf[:n])
-        }
     }
 }()
 ```

@@ -53,7 +53,7 @@ got, _ := f.FormatString()
 
 ## Verification Flow
 
-`verify_output` reads the golden file and compares against current terminal content. If the golden file doesn't exist, it returns `match: false` with a message — it does NOT auto-create. Use `update_golden` to create or update golden files.
+`verify_output` reads the golden file and compares against current terminal content. If the golden file doesn't exist, it returns `match: false` with a message (CLI: exit 1) - it does NOT auto-create. A content mismatch returns a tool error whose text contains the unified diff. Use `update_golden` to create or update golden files. `run_tape` combines play + verify (or update) with a throwaway terminal in one call.
 
 ```go
 func VerifyOutput(terminal *libghostty.Terminal, goldenPath, format string, trim, unwrap bool) (*VerifyResult, error) {
