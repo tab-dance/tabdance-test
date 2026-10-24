@@ -1,10 +1,10 @@
 # MCP Tools — Tool Interface Specification
 
-Reference for the MCP tools exposed by tabdance-test.
+Reference for the MCP tools exposed by tabdance-test (tt).
 
 ## Overview
 
-tt is an MCP server that provides tools for headless terminal testing. An AI agent uses these tools to create terminals, send input, inspect state, and verify output.
+tabdance-test (tt) is an MCP server that provides tools for headless terminal testing. An AI agent uses these tools to create terminals, send input, inspect state, and verify output.
 
 ## Tool List
 

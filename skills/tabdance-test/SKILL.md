@@ -13,7 +13,7 @@ description: >
 user-invocable: true
 ---
 
-# Tabdance-Test Development Reference
+# Tabdance-Test (tt) Development Reference
 
 Comprehensive reference for developing [tabdance-test](.) — the CLI tool and MCP server that provides headless terminal testing via go-libghostty. Supports two interfaces:
 
