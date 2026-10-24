@@ -112,6 +112,15 @@ Response:
 
 Scope names are normalized case-insensitively (`Line`, `+line`, `+Line` all mean `line`), and unknown scopes fall back to `screen`. Both the MCP `wait_for` tool and tape `Wait` commands share this one poll implementation.
 
+### Gotcha: tape `Wait /re/` defaults to LINE scope
+
+In the tape language, the VHS parser maps plain `Wait /re/` to args `Line re`, so the regex only ever matches the row at the cursor's Y position, even though the MCP `wait_for` tool defaults to `screen`. Two failure shapes this produced (real CI flakes, `TestRunTapeUpdateAndVerify`):
+
+- After `Type`+`Enter`, it matched the **typed text on the cursor line** before Enter was processed — the tape finished early and a golden was baked before the command output arrived (verify then mismatched).
+- When it started polling after Enter, the cursor had moved below the output line, so it **timed out within 30s even with the pattern fully rendered elsewhere on screen**.
+
+**Rule for tapes**: after `Type`+`Enter`, anchor on output with `WaitStable @250ms` + `Expect /re/` (settles the frame the next step sees), or use `Wait+Screen` against an output-only marker that is never part of the typed text. Reserve plain `Wait /re/` for patterns you want on the active line only.
+
 ### Chain with run_tape
 
 Instead of hand-orchestrating wait + verify against your own terminal, `run_tape` does the whole loop: `tape_path` (+ optional `golden_path`/`update`), fresh terminal from the tape's Set settings, close after. Verify failures come back as tool errors containing the diff.
