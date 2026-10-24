@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -36,12 +38,41 @@ type Daemon struct {
 	lastActive time.Time
 }
 
+// socketDir returns per-session socket directory. Terminals of unrelated
+// projects sharing one daemon would bleed into each other's list, wait, and
+// completion results, so the path is namespaced by the current project root
+// (git repository top or working directory). TABDANCE_TEST_SOCK overrides
+// the resolved path entirely.
 func socketDir() string {
 	if dir := os.Getenv("TABDANCE_TEST_SOCK"); dir != "" {
 		return dir
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", defaultSocketDir)
+	base := filepath.Join(home, ".local", "share", defaultSocketDir)
+	return filepath.Join(base, sessionKey())
+}
+
+// sessionKey namespaces the socket by git repo root (falling back to the
+// working directory), so nested project directories share one daemon.
+func sessionKey() string {
+	start, err := os.Getwd()
+	if err != nil {
+		return "orphan"
+	}
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			dir = start // no repo root found; key by the working directory
+			break
+		}
+		dir = parent
+	}
+	sum := sha256.Sum256([]byte(dir))
+	return hex.EncodeToString(sum[:])[:12]
 }
 
 func SocketPath() string {
