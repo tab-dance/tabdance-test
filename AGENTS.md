@@ -131,7 +131,8 @@ tabdance-test
 │                                #  markers -> comments, WaitStable between clusters)
 └── run <tape>                   # Daemon-free: play tape, verify, exit 0/1
     --golden / --update / --cols / --rows / --scrollback / --timeout
-    --record / --env / --json (per-tape dir summary) / --strict (no Sleep) / --term
+    --record / --env / --json (per-tape dir summary) / --strict (no Sleep)
+    --term / --jobs N (parallel tapes; N>1 forbids --record)
 ```
 
 ## Code Organization
@@ -337,6 +338,7 @@ Lines at the start of a tape line may use seven verbs that tabdance-test execute
 - **Daemon socket path**: `~/.local/share/tabdance-test/daemon.sock` (override with `TABDANCE_TEST_SOCK`). PID file at `~/.local/share/tabdance-test/daemon.pid`, plus `daemon.pid.lock` (flock held for the daemon's lifetime, never deleted). Socket dir is 0700, socket file 0600.
 - **Daemon idle timeout**: 30s after last terminal closed and no client connected (override with `TABDANCE_TEST_IDLE_TIMEOUT`).
 - **The child is a session leader with its own process group**: `pty.StartWithSize` sets `Setsid`, so teardown kills the group with negative-PID `syscall.Kill(-pgid, ...)` (SIGTERM then SIGKILL); do not signal `cmd.Process` directly, TUI grandchildren would survive.
+- **Wait anchors must match OUTPUT, not the input echo**: typed text appears on screen before Enter is processed, so `Wait+Screen /echo foo/` can fire while Enter is still in flight and race the command's output (first/cold run loses, warm runs win). Anchor on an output-only line, or `WaitStable @250ms` after Enter before verifying.
 - **VHS `Wait` syntax is picky**: `Wait+Screen /re/` and `Wait+Line /re/` are the forms with a pattern; bare `Wait` has NO pattern (instant match). Options like `@5s` use `@` (parsed via `parseTypingSpeed`, not `time.ParseDuration`).
 - **Daemon sockets are per-project**: socket path hashes the git repo root (cwd fallback); `TABDANCE_TEST_SOCK` overrides the entire resolved path. Separate projects get separate daemons; nested dirs of one repo share theirs.
 - **Daemon shutdown is signal-driven** SIGINT/SIGTERM remove the socket and pid files and close all terminals. The flock lock file is intentionally kept on disk (deleting it would race lock waiters).
