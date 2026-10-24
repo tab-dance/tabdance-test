@@ -232,7 +232,8 @@ func TestRunTapeUpdateAndVerify(t *testing.T) {
 	tapeContent := "Set Shell \"sh\"\n" +
 		"Wait+Screen /\\$/\n" +
 		"Type \"echo run-tape-test\"\nEnter\n" +
-		"Wait /run-tape-test/\n"
+		"WaitStable @250ms\n" +
+		"Expect /run-tape-test/\n"
 	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +285,8 @@ func TestRunTapeMismatchIsError(t *testing.T) {
 	tapeContent := "Set Shell \"sh\"\n" +
 		"Wait+Screen /\\$/\n" +
 		"Type \"echo mismatch-test\"\nEnter\n" +
-		"Wait /mismatch-test/\n"
+		"WaitStable @250ms\n" +
+		"Expect /mismatch-test/\n"
 	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +345,8 @@ func TestRunTapeReportsExitStatusOnMismatch(t *testing.T) {
 	tapeContent := "Set Shell \"sh\"\n" +
 		"Wait+Screen /\\$/\n" +
 		"Type \"echo run-exit-fail\"\nEnter\n" +
-		"Wait+Screen /run-exit-fail/\n" +
+		"WaitStable @250ms\n" +
+		"Expect /run-exit-fail/\n" +
 		"Type \"exit 3\"\nEnter\n" +
 		"ExpectExit\n"
 	if err := os.WriteFile(tapePath, []byte(tapeContent), 0644); err != nil {
