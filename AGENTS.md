@@ -37,7 +37,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleas
 - macOS targets cross-compile on the same Linux runner: `scripts/build-lib.sh` maps darwin targets to `x86_64-macos`/`aarch64-macos` zig triples, and `scripts/macos-stubs/` holds text stub (tbd) files for `-framework CoreFoundation -framework Security` and `-lresolv` (linked unconditionally by Go on darwin). The stubs carry the real Apple install names, so dyld binds the true frameworks at load time on the Mac; no Apple SDK is needed. The stub paths are passed via `-extldflags "-L ... -F ..."` in the darwin-only goreleaser `overrides` and in the `make build-darwin-*` targets.
 - Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=$(command -v zig) goreleaser release --snapshot --clean`
 - The build injects `-X internal/version.Version={{ .Version }}` so `tt --version` matches the release tag.
-- `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging.
+- `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging. It also runs a master-only macOS (arm64) job (`test-macos`) that runs the test suite natively (real Darwin PTY/`sh` behavior, bash 3.2) and smoke-tests a goreleaser-linked release-shaped binary; branches can be validated on demand via `workflow_dispatch`.
 - macOS binaries are built unsigned (no codesigning/notarization step).
 
 ## Architecture & Data Flow

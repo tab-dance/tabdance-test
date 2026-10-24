@@ -1,6 +1,7 @@
 name: Build
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -94,3 +95,49 @@ jobs:
 
       - name: Vet
         run: make vet
+
+  test-macos:
+    name: go test (macos, arm64)
+    runs-on: macos-14
+    # Master-only: darwin regressions are still gated before release (tags
+    # come off master) without adding slow macOS runs to every PR. Use
+    # workflow_dispatch to validate a PR branch manually when needed.
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout (with ghostty submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      - name: Run tests
+        run: make test
+
+      - name: Vet
+        run: make vet
+
+      - name: Build release-shaped binary
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: build --snapshot --clean --single-target
+
+      - name: Smoke test release binary
+        run: |
+          tt=$(find dist -type f -name tt | head -1)
+          echo "smoke-testing $tt"
+          id=$("$tt" exec sh)
+          "$tt" send "$id" $'echo tt-macos-smoke\n'
+          "$tt" wait "$id" 'tt-macos-smoke' --timeout 30
+          "$tt" view "$id"
+          "$tt" rm "$id"
