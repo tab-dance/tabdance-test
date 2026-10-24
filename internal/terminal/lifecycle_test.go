@@ -41,8 +41,12 @@ func TestExitStateCaptured(t *testing.T) {
 	}
 }
 
+// The command targets the shell started by startPTY itself ("sh -c" with
+// no inner command), because a nested `sh -c 'kill -9 $$'` would die by
+// signal while the wrapper shell converts that into a plain exit code
+// 128+9, hiding the signal from ExitState.
 func TestExitStateCapturesSignal(t *testing.T) {
-	mt := newTestTerminal(t, "killer", "sh -c 'kill -9 $$'")
+	mt := newTestTerminal(t, "killer", "kill -9 $$")
 	waitForExit(t, mt, 5*time.Second)
 
 	exited, code, signal := mt.ExitState()

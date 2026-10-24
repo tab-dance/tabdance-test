@@ -377,7 +377,10 @@ func (m *ManagedTerminal) Exited() bool {
 }
 
 // ExitState returns the child's termination status: exit code (with -1
-// when killed by a signal) and the signal name if killed.
+// when killed by a signal) and the signal name if killed. The child is
+// the `sh -c` wrapper started by startPTY; if the command string itself
+// is a shell snippet, the wrapper reports an inner signal death as a
+// plain exit code 128+N instead of a signal.
 func (m *ManagedTerminal) ExitState() (exited bool, exitCode int, signal string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
