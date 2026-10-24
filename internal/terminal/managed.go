@@ -37,6 +37,9 @@ type ManagedTerminal struct {
 	lastOutputTime time.Time
 	// history is the last maxOutputHistory bytes written by the child.
 	history []byte
+	// osc tracks semantic prompt markers (OSC 133) seen on the stream.
+	osc        osc133State
+	oscScanner osc133Scanner
 	// Child exit state, recorded once cmd.Wait returns in startPTY.
 	exited     bool
 	exitCode   int
@@ -177,6 +180,7 @@ func (m *ManagedTerminal) ptyReadLoop() {
 		if overflow := len(m.history) - maxOutputHistory; overflow > 0 {
 			m.history = m.history[overflow:]
 		}
+		m.applyOSC133Locked(m.oscScanner.feed(data))
 		mt.VTWrite(data)
 		if rec != nil {
 			rec.WriteOutput(data)
@@ -398,4 +402,35 @@ func (m *ManagedTerminal) LastOutputTime() time.Time {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.lastOutputTime
+}
+
+// applyOSC133Locked updates the terminal's semantic prompt state.
+// The caller must hold the terminal lock.
+func (m *ManagedTerminal) applyOSC133Locked(ev osc133Events) {
+	if ev.Prompt {
+		m.osc.prompt = time.Now()
+	}
+	if ev.CommandEnd {
+		m.osc.commandEnd = time.Now()
+		if ev.HadCommandExit {
+			m.osc.commandExit = ev.CommandExit
+			m.osc.hadCommandExit = true
+		}
+	}
+}
+
+// LastPromptTime returns when the last OSC 133 prompt-start marker (A)
+// was seen, or the zero time if none.
+func (m *ManagedTerminal) LastPromptTime() time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.osc.prompt
+}
+
+// LastCommandEnd returns when the last OSC 133 command-finished marker
+// (D) was seen plus its exit code when present.
+func (m *ManagedTerminal) LastCommandEnd() (t time.Time, ok bool, exitCode int, hasExit bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.osc.commandEnd, !m.osc.commandEnd.IsZero(), m.osc.commandExit, m.osc.hadCommandExit
 }

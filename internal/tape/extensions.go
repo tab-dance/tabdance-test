@@ -22,6 +22,8 @@ const (
 	extWaitExit
 	extWaitStable
 	extExpect
+	extWaitPrompt
+	extWaitCommand
 )
 
 // extension is one of the tabdance-test extension verbs that live outside
@@ -38,10 +40,12 @@ type extension struct {
 // Extension verbs are recognized only at the start of a line; every other
 // line must remain valid VHS tape syntax.
 var extVerbs = map[string]extKind{
-	"ExpectExit": extExpectExit,
-	"WaitExit":   extWaitExit,
-	"WaitStable": extWaitStable,
-	"Expect":     extExpect,
+	"ExpectExit":  extExpectExit,
+	"WaitExit":    extWaitExit,
+	"WaitStable":  extWaitStable,
+	"Expect":      extExpect,
+	"WaitPrompt":  extWaitPrompt,
+	"WaitCommand": extWaitCommand,
 }
 
 // splitExtensions separates extension lines from VHS tape segments while
@@ -204,6 +208,10 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 		return e.waitStable(timeout)
 	case extExpect:
 		return e.expect(ext.pattern, ext.scope)
+	case extWaitPrompt:
+		return e.waitPrompt(timeout)
+	case extWaitCommand:
+		return e.waitCommand(timeout)
 	}
 	return fmt.Errorf("unknown extension kind %d", ext.kind)
 }
@@ -345,4 +353,40 @@ func (e *TapeExecutor) newPlainFormatter() (*libghostty.Formatter, error) {
 		libghostty.WithFormatterTrim(true),
 		libghostty.WithFormatterUnwrap(true),
 	)
+}
+
+// waitPrompt blocks until the shell emits an OSC 133 prompt-start (A)
+// marker; this synchronizes on actual prompt redraws instead of guessing.
+func (e *TapeExecutor) waitPrompt(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !e.terminal.LastPromptTime().IsZero() {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return e.timeoutError("no OSC 133 prompt marker received within " + timeout.String() +
+				" (the shell must emit prompt markers, e.g. via shell integration)")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// waitCommand blocks until the shell emits an OSC 133 command-finished
+// (D) marker after running a command.
+func (e *TapeExecutor) waitCommand(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if t, ok, _, hasExit := e.terminal.LastCommandEnd(); ok {
+			// Wait for the D marker itself; the exit code travels on it when
+			// the shell includes it (hasExit).
+			_ = t
+			_ = hasExit
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return e.timeoutError("no OSC 133 command-finished marker received within " + timeout.String() +
+				" (the shell must emit command markers, e.g. via shell integration)")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }

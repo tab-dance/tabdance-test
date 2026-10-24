@@ -38,6 +38,8 @@ type Terminal interface {
 	RecentOutput(n int) []byte
 	LastOutputTime() time.Time
 	ExitState() (exited bool, exitCode int, signal string)
+	LastPromptTime() time.Time
+	LastCommandEnd() (t time.Time, ok bool, exitCode int, hasExit bool)
 }
 
 func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor {
@@ -106,6 +108,10 @@ func extVerbName(ext extension) string {
 		return "WaitStable"
 	case extExpect:
 		return "Expect"
+	case extWaitPrompt:
+		return "WaitPrompt"
+	case extWaitCommand:
+		return "WaitCommand"
 	default:
 		return "extension"
 	}
