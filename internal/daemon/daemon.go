@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tab-dance/tabdance-test/internal/service"
 	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
@@ -25,6 +26,7 @@ const (
 
 type Daemon struct {
 	manager      *terminal.TerminalManager
+	svc          *service.Service
 	socketPath   string
 	pidPath      string
 	idleTimeout  time.Duration
@@ -84,9 +86,11 @@ func PIDPath() string {
 }
 
 func New() *Daemon {
+	manager := terminal.NewTerminalManager()
 	dir := socketDir()
 	return &Daemon{
-		manager:     terminal.NewTerminalManager(),
+		manager:     manager,
+		svc:         service.NewWithManager(manager),
 		socketPath:  filepath.Join(dir, defaultSocketName),
 		pidPath:     filepath.Join(dir, defaultPIDFileName),
 		idleTimeout: idleTimeout(),

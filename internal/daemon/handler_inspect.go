@@ -1,27 +1,11 @@
 package daemon
 
-import (
-	"github.com/tab-dance/tabdance-test/internal/inspect"
-)
-
 func (d *Daemon) handleView(req Request) Response {
-	id := req.GetString("id")
-	mt, err := d.manager.Get(id)
-	if err != nil {
-		return ErrorResponse(err.Error())
-	}
-
 	format := req.GetString("format")
-	if format == "" {
-		format = "plain"
-	}
 	trim := req.GetBoolDefault("trim", true)
 	unwrap := req.GetBoolDefault("unwrap", true)
 
-	mt.Lock()
-	defer mt.Unlock()
-
-	result, err := inspect.GetView(mt.Terminal, format, trim, unwrap)
+	result, err := d.svc.View(req.GetString("id"), format, trim, unwrap)
 	if err != nil {
 		return ErrorResponse(err.Error())
 	}
@@ -29,49 +13,37 @@ func (d *Daemon) handleView(req Request) Response {
 }
 
 func (d *Daemon) handleCursor(req Request) Response {
-	id := req.GetString("id")
-	mt, err := d.manager.Get(id)
+	result, err := d.svc.Cursor(req.GetString("id"))
 	if err != nil {
 		return ErrorResponse(err.Error())
 	}
-
-	mt.Lock()
-	defer mt.Unlock()
-
-	result := inspect.GetCursor(mt.Terminal)
 	return SuccessResponse(result)
 }
 
 func (d *Daemon) handleSize(req Request) Response {
-	id := req.GetString("id")
-	mt, err := d.manager.Get(id)
+	result, err := d.svc.Size(req.GetString("id"))
 	if err != nil {
 		return ErrorResponse(err.Error())
 	}
-
-	mt.Lock()
-	defer mt.Unlock()
-
-	result := inspect.GetSize(mt.Terminal)
 	return SuccessResponse(result)
 }
 
 func (d *Daemon) handleCell(req Request) Response {
-	id := req.GetString("id")
-	x := uint16(req.GetInt("x"))
-	y := uint32(req.GetInt("y"))
-
-	mt, err := d.manager.Get(id)
-	if err != nil {
-		return ErrorResponse(err.Error())
-	}
-
-	mt.Lock()
-	defer mt.Unlock()
-
-	result, err := inspect.GetCell(mt.Terminal, x, y)
+	result, err := d.svc.Cell(req.GetString("id"), req.GetInt("x"), req.GetInt("y"))
 	if err != nil {
 		return ErrorResponse(err.Error())
 	}
 	return SuccessResponse(result)
+}
+
+func (d *Daemon) handleOutput(req Request) Response {
+	n := req.GetInt("bytes")
+	if n <= 0 {
+		n = 4096
+	}
+	out, err := d.svc.RecentOutput(req.GetString("id"), n)
+	if err != nil {
+		return ErrorResponse(err.Error())
+	}
+	return SuccessResponse(map[string]any{"output": out})
 }

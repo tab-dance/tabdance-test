@@ -52,16 +52,20 @@ func (s *Server) handleRunTape(_ context.Context, req mcp.CallToolRequest) (*mcp
 		shellCommand = tape.ShellToCommand(settings.Shell)
 	}
 
-	mt, err := s.terminals.Create(terminal.CreateConfig{
+	created, err := s.svc.Exec(terminal.CreateConfig{
 		Cols:       uint16(cols),
 		Rows:       uint16(rows),
 		Scrollback: 10000,
 		Command:    shellCommand,
-	})
+	}, "", 0)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	defer s.terminals.Delete(mt.ID)
+	defer s.svc.Delete(created.TerminalID)
+	mt, err := s.terminals.Get(created.TerminalID)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	executor := tape.NewTapeExecutor(mt, timeout)
 	if settings.TypingSpeed > 0 {

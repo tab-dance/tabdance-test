@@ -4,100 +4,59 @@ import (
 	"context"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/tab-dance/tabdance-test/internal/inspect"
-	"github.com/tab-dance/tabdance-test/internal/wait"
 )
 
 func (s *Server) handleGetView(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id, err := req.RequireString("terminal_id")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
-
-	mt, err := s.terminals.Get(id)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
 	format := req.GetString("format", "plain")
 	trim := req.GetBool("trim", true)
 	unwrap := req.GetBool("unwrap", true)
 
-	mt.Lock()
-	defer mt.Unlock()
-
-	result, err := inspect.GetView(mt.Terminal, format, trim, unwrap)
+	result, err := s.svc.View(id, format, trim, unwrap)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
-
-	return mcp.NewToolResultText(result.ToJSON()), nil
-}
-
-func (s *Server) handleGetCell(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id, err := req.RequireString("terminal_id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	x, err := req.RequireInt("x")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	y, err := req.RequireInt("y")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	mt, err := s.terminals.Get(id)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	mt.Lock()
-	defer mt.Unlock()
-
-	result, err := inspect.GetCell(mt.Terminal, uint16(x), uint32(y))
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
 	return mcp.NewToolResultText(result.ToJSON()), nil
 }
 
 func (s *Server) handleGetCursor(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id, err := req.RequireString("terminal_id")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
-
-	mt, err := s.terminals.Get(id)
+	result, err := s.svc.Cursor(id)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
-
-	mt.Lock()
-	defer mt.Unlock()
-
-	result := inspect.GetCursor(mt.Terminal)
 	return mcp.NewToolResultText(result.ToJSON()), nil
 }
 
 func (s *Server) handleGetSize(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id, err := req.RequireString("terminal_id")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
-
-	mt, err := s.terminals.Get(id)
+	result, err := s.svc.Size(id)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
+	return mcp.NewToolResultText(result.ToJSON()), nil
+}
 
-	mt.Lock()
-	defer mt.Unlock()
-
-	result := inspect.GetSize(mt.Terminal)
+func (s *Server) handleGetCell(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("terminal_id")
+	if err != nil {
+		return handleParamError(err)
+	}
+	x := req.GetInt("x", 0)
+	y := req.GetInt("y", 0)
+	result, err := s.svc.Cell(id, x, y)
+	if err != nil {
+		return handleParamError(err)
+	}
 	return mcp.NewToolResultText(result.ToJSON()), nil
 }
 
@@ -106,15 +65,13 @@ func (s *Server) handleGetSize(_ context.Context, req mcp.CallToolRequest) (*mcp
 func (s *Server) handleGetOutput(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id, err := req.RequireString("terminal_id")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
 	n := req.GetInt("bytes", 4096)
 
-	mt, err := s.terminals.Get(id)
+	out, err := s.svc.RecentOutput(id, n)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return handleParamError(err)
 	}
-
-	recent := mt.RecentOutput(n)
-	return mcp.NewToolResultText(wait.Repr(recent)), nil
+	return mcp.NewToolResultText(out), nil
 }

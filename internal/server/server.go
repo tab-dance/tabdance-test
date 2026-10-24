@@ -2,19 +2,23 @@ package server
 
 import (
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/tab-dance/tabdance-test/internal/service"
 	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
 type Server struct {
 	mcp       *server.MCPServer
 	terminals *terminal.TerminalManager
+	svc       *service.Service
 	version   string
 }
 
 func New(version string) *Server {
+	manager := terminal.NewTerminalManager()
 	s := &Server{
 		version:   version,
-		terminals: terminal.NewTerminalManager(),
+		terminals: manager,
+		svc:       service.NewWithManager(manager),
 	}
 
 	s.mcp = server.NewMCPServer(

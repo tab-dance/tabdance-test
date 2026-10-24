@@ -1,6 +1,10 @@
 package daemon
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/tab-dance/tabdance-test/internal/input"
+)
 
 type Request struct {
 	Method string         `json:"method"`
@@ -91,4 +95,36 @@ func SuccessResponse(result any) Response {
 
 func ErrorResponse(err string) Response {
 	return Response{OK: false, Error: err}
+}
+
+// envMap extracts an env parameter (key-value object) as a map.
+func envMap(req Request) map[string]string {
+	v, ok := req.Params["env"]
+	if !ok {
+		return nil
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	env := make(map[string]string, len(m))
+	for k, v := range m {
+		if s, ok := v.(string); ok {
+			env[k] = s
+		}
+	}
+	return env
+}
+
+// decodeKeyInputs parses a raw params value into structured key inputs.
+func decodeKeyInputs(raw any) []input.KeyInput {
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var keys []input.KeyInput
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return nil
+	}
+	return keys
 }
