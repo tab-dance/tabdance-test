@@ -5,10 +5,12 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 ## Daemon Architecture
 
 - **Auto-start**: Daemon forks automatically on first CLI command if not running
-- **Socket**: `~/.local/share/tabdance-test/daemon.sock` (override: `TABDANCE_TEST_SOCK`); dir 0700, socket 0600
+- **Socket**: `~/.local/share/tabdance-test/<project-key>/daemon.sock`, where `<project-key>` hashes the git repo root (or cwd); terminals never bleed between projects (override: `TABDANCE_TEST_SOCK`); dir 0700, socket 0600
 - **PID file**: `~/.local/share/tabdance-test/daemon.pid`, plus `daemon.pid.lock` (flock, prevents start races)
 - **Idle timeout**: 30s after last terminal closed and no client connected (override: `TABDANCE_TEST_IDLE_TIMEOUT`)
 - **Shutdown**: SIGINT/SIGTERM remove socket + pid files and close all terminals
+- **`.term`**: `exec --term`/`run --term` override the child's TERM
+- **`cast2tape`**: converts recordings into deterministic tapes (input events -> Type/Key/Ctrl/Raw, WaitStable between input clusters)
 - **Protocol**: JSON-RPC over Unix socket (one JSON line per request/response)
 - **`run` command is daemon-free**: Creates terminal in-process, no socket needed
 

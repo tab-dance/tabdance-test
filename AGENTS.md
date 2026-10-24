@@ -100,7 +100,7 @@ AI Agent
 tabdance-test
 ├── mcp                          # Start MCP server (stdio)
 ├── exec <command>               # Create terminal, print ID
-│   --cols / --rows / --scrollback / --env / --working-directory
+│   --cols / --rows / --scrollback / --env / --working-directory / --term
 │   --record <path>
 │   (attach separately via `attach <id>`)
 ├── ls                           # List active terminals (--json)
@@ -126,9 +126,12 @@ tabdance-test
 ├── record <id> <path>          # Start asciinema recording (--stop ends it)
 ├── marker <id> <label>          # Add recording marker
 ├── doctor                       # Environment preflight checks (spawns nothing)
+├── cast2tape <cast> [-o tape]   # Convert an asciicast recording into a tape
+│                                # (input events -> Type/Key/Ctrl/Raw, resizes -> Resize,
+│                                #  markers -> comments, WaitStable between clusters)
 └── run <tape>                   # Daemon-free: play tape, verify, exit 0/1
     --golden / --update / --cols / --rows / --scrollback / --timeout
-    --record / --env / --json (per-tape dir summary) / --strict (no Sleep)
+    --record / --env / --json (per-tape dir summary) / --strict (no Sleep) / --term
 ```
 
 ## Code Organization
@@ -171,6 +174,13 @@ pkg/
     completion.go             # Public carapace completion actions (ActionTerminalIDs, ActionKeyNames)
 
 internal/
+  service/
+    service.go               # Transport-neutral operations shared by daemon and MCP
+    terminal.go              # Exec/List/Inspect/Delete (with exit-state DTOs)
+    input.go                 # SendText/Keys/Mouse/Focus/Paste, Resize
+    inspect.go               # View/Cursor/Size/Cell/RecentOutput
+    tapeops.go               # PlayTape, Wait (rich timeout context), Verify/UpdateGolden
+    recording.go             # Start/Stop recording, markers
   daemon/
     protocol.go              # JSON-RPC protocol types (Request, Response, GetBoolDefault helpers)
     daemon.go                # Daemon: socket listener, accept loop, idle timeout, graceful signal shutdown
@@ -178,7 +188,7 @@ internal/
     handler_terminal.go      # Daemon handlers: exec, ls, inspect, rm
     handler_input.go         # Daemon handlers: send, keys, mouse, paste, focus
     handler_inspect.go       # Daemon handlers: view, cursor, size, cell
-    handler_tape.go          # Daemon handlers: resize, tape, wait
+    handler_tape.go          # Daemon handlers: resize(input.go), tape, wait
     handler_golden.go        # Daemon handlers: verify, snapshot
     handler_recording.go     # Daemon handlers: record, stop, marker, attach, output
   client/
@@ -289,6 +299,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **CLI output format**: Human-readable by default, `--json` flag for machine-parseable output.
 - **Init-style subcommand registration**: Each subcommand file declares a package-level `*cobra.Command` var and registers it via `rootCmd.AddCommand()` in an `init()` function. No central list of subcommands in root.go.
 - **Carapace completion actions**: Defined in `pkg/actions/` (`ActionTerminalIDs`, `ActionKeyNames`). Command files import and use them directly.
+- **Service layer is the only place behavior lives**: `internal/service` owns locking, defaults and error context; daemon and MCP handlers only parse/serialize. Add new operations to the service first, then expose them.
 - **`run` command is daemon-free**: Creates terminal in-process, plays tape, verifies, exits. No socket needed. Uses `ParseSettings()` to read `Set Shell`/`Set Width`/`Set Height`/`Set WaitTimeout`/`Set TypingSpeed` from the tape before creating the terminal. Defaults to `sh` if no `Set Shell` is specified.
 - **Shared result types**: The client returns `inspect.*Result`, `golden.VerifyResult`, `wait.WaitForResult`, and `terminal.TerminalInfo` directly — daemon, MCP and CLI layers all serialize the same DTOs. Do not re-declare client-local structs.
 - **Tri-state bool params**: Daemon requests use `req.GetBoolDefault(key, def)` when absence must fall back to a non-false default (e.g. `trim`/`unwrap`).
@@ -300,7 +311,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## Tape Extension Verbs
 
-Lines at the start of a tape line may use four verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), and `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
+Lines at the start of a tape line may use six verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` and `WaitCommand[@dur]` (OSC 133 semantic markers; require a shell with prompt integration). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
 
 ## Gotchas
 
@@ -327,7 +338,8 @@ Lines at the start of a tape line may use four verbs that tabdance-test executes
 - **Daemon idle timeout**: 30s after last terminal closed and no client connected (override with `TABDANCE_TEST_IDLE_TIMEOUT`).
 - **The child is a session leader with its own process group**: `pty.StartWithSize` sets `Setsid`, so teardown kills the group with negative-PID `syscall.Kill(-pgid, ...)` (SIGTERM then SIGKILL); do not signal `cmd.Process` directly, TUI grandchildren would survive.
 - **VHS `Wait` syntax is picky**: `Wait+Screen /re/` and `Wait+Line /re/` are the forms with a pattern; bare `Wait` has NO pattern (instant match). Options like `@5s` use `@` (parsed via `parseTypingSpeed`, not `time.ParseDuration`).
-- **Daemon shutdown is signal-driven**: SIGINT/SIGTERM remove the socket and pid files and close all terminals. The flock lock file is intentionally kept on disk (deleting it would race lock waiters).
+- **Daemon sockets are per-project**: socket path hashes the git repo root (cwd fallback); `TABDANCE_TEST_SOCK` overrides the entire resolved path. Separate projects get separate daemons; nested dirs of one repo share theirs.
+- **Daemon shutdown is signal-driven** SIGINT/SIGTERM remove the socket and pid files and close all terminals. The flock lock file is intentionally kept on disk (deleting it would race lock waiters).
 - **Child processes are reaped exactly once**: `startPTY` spawns a goroutine calling `cmd.Wait()`; do not add another wait — it would degrade into double-wait races. Testing shells must not rely on `SIGTERM` semantics other than the existing SIGTERM-then-SIGKILL escalation in `Close`.
 
 ## Dependencies
