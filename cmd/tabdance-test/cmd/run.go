@@ -53,6 +53,9 @@ func runTape(tapePath, goldenPath string, update bool) error {
 		k, v, _ := parseKeyValue(e)
 		env[k] = v
 	}
+	if runTerm != "" {
+		env["TERM"] = runTerm
+	}
 
 	settings, err := tape.ParseSettings(tapePath)
 	if err != nil {
@@ -132,11 +135,27 @@ func runTape(tapePath, goldenPath string, update bool) error {
 	}
 
 	if result.Match {
-		fmt.Fprintf(os.Stderr, "PASS\n")
+		msg := "PASS"
+		if exited, code, signal := mt.ExitState(); exited {
+			if signal != "" {
+				msg += fmt.Sprintf(" (child killed by %s)", signal)
+			} else {
+				msg += fmt.Sprintf(" (exit=%d)", code)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "%s\n", msg)
 		return nil
 	}
 
-	return fmt.Errorf("FAIL\n%s", result.Diff)
+	failMsg := fmt.Sprintf("FAIL\n%s", result.Diff)
+	if _, code, signal := mt.ExitState(); code != 0 || signal != "" {
+		if signal != "" {
+			failMsg += fmt.Sprintf("\n(child killed by %s)", signal)
+		} else {
+			failMsg += fmt.Sprintf("\n(child exited with code %d)", code)
+		}
+	}
+	return fmt.Errorf("%s", failMsg)
 }
 
 // runDirectory plays every *.tape in the directory against the matching
@@ -207,6 +226,7 @@ var (
 	runWorkingDir string
 	runJsonOutput bool
 	runStrict     bool
+	runTerm       string
 )
 
 func runStrictCheck(tapePath string) error {
@@ -228,6 +248,7 @@ func init() {
 	runCmd.Flags().StringVar(&runWorkingDir, "working-directory", "", "working directory for the child process")
 	runCmd.Flags().BoolVar(&runJsonOutput, "json", false, "when running a directory, print the aggregated result as JSON")
 	runCmd.Flags().BoolVar(&runStrict, "strict", false, "reject tapes containing Sleep verbs (determinism guard)")
+	runCmd.Flags().StringVar(&runTerm, "term", "", "override the TERM environment variable for the child process")
 
 	rootCmd.AddCommand(runCmd)
 

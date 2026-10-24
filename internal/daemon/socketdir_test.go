@@ -26,7 +26,6 @@ func TestSessionKeyBindsToGitRoot(t *testing.T) {
 		t.Fatalf("nested dir should share the repo-root daemon key: %q vs %q", rootKey, nestedKey)
 	}
 
-
 }
 
 func TestSessionKeyDistinctForSeparatePaths(t *testing.T) {

@@ -20,6 +20,9 @@ var execCmd = &cobra.Command{
 			k, v, _ := parseKeyValue(e)
 			env[k] = v
 		}
+		if execTerm != "" {
+			env["TERM"] = execTerm
+		}
 
 		id, err := c.Exec(strings.Join(args, " "), execCols, execRows, execScrollback, env, execWorkingDir, execRecordPath)
 		if err != nil {
@@ -38,6 +41,7 @@ var (
 	execEnv        []string
 	execWorkingDir string
 	execRecordPath string
+	execTerm       string
 )
 
 func init() {
@@ -47,6 +51,7 @@ func init() {
 	execCmd.Flags().StringArrayVar(&execEnv, "env", nil, "environment variables (key=value, repeatable)")
 	execCmd.Flags().StringVar(&execWorkingDir, "working-directory", "", "working directory for the child process")
 	execCmd.Flags().StringVar(&execRecordPath, "record", "", "start asciinema recording to path")
+	execCmd.Flags().StringVar(&execTerm, "term", "", "override the TERM environment variable for the child process")
 
 	rootCmd.AddCommand(execCmd)
 

@@ -27,6 +27,11 @@ func (c *Client) connect() (net.Conn, error) {
 	return conn, nil
 }
 
+// callTimeout bounds how long a single request may take. Tape playback and
+// waits can legitimately run for minutes, so this is a hang-guard, not a
+// tight timeout.
+const callTimeout = 10 * time.Minute
+
 func (c *Client) Call(method string, params map[string]any) (*daemon.Response, error) {
 	conn, err := c.connect()
 	if err != nil {
@@ -36,12 +41,16 @@ func (c *Client) Call(method string, params map[string]any) (*daemon.Response, e
 
 	req := daemon.Request{Method: method, Params: params}
 	enc := json.NewEncoder(conn)
+	if deadline := time.Now().Add(callTimeout); true {
+		conn.SetWriteDeadline(deadline)
+	}
 	if err := enc.Encode(&req); err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 
 	dec := json.NewDecoder(conn)
 	var resp daemon.Response
+	conn.SetReadDeadline(time.Now().Add(callTimeout))
 	if err := dec.Decode(&resp); err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 )
 
@@ -72,7 +73,16 @@ func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 	sub := mt.Subscribe()
 	defer mt.Unsubscribe(sub)
 
+	var lastDropped int64 = 0
 	for data := range sub.Channel() {
+		if d := sub.Dropped(); d != lastDropped {
+			loss := d - lastDropped
+			lastDropped = d
+			notice := []byte(fmt.Sprintf("\n[[tabdance-test: %d bytes of output dropped during attach]]\n", loss))
+			if _, err := conn.Write(notice); err != nil {
+				return
+			}
+		}
 		if _, err := conn.Write(data); err != nil {
 			return
 		}

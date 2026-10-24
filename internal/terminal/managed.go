@@ -182,6 +182,8 @@ func (m *ManagedTerminal) ptyReadLoop() {
 			select {
 			case sub.ch <- data:
 			default:
+				n := int64(len(data))
+				sub.dropped.Add(n)
 			}
 		}
 		m.mu.Unlock()
