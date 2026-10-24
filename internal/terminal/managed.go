@@ -22,7 +22,7 @@ type ManagedTerminal struct {
 	MouseEncoder *libghostty.MouseEncoder
 	Cmd          *exec.Cmd
 	Ptmx         *os.File
-	Recorder     *recording.AsciicastRecorder
+	recPtr       atomic.Pointer[recording.AsciicastRecorder]
 	Command      string
 	Cols         uint16
 	Rows         uint16
@@ -168,15 +168,18 @@ func (m *ManagedTerminal) ptyReadLoop() {
 
 		data := buf[:n]
 
+		mt := m.Terminal
+		rec := m.recPtr.Load()
+
 		m.mu.Lock()
 		m.lastOutputTime = time.Now()
 		m.history = append(m.history, data...)
 		if overflow := len(m.history) - maxOutputHistory; overflow > 0 {
 			m.history = m.history[overflow:]
 		}
-		m.Terminal.VTWrite(data)
-		if m.Recorder != nil {
-			m.Recorder.WriteOutput(data)
+		mt.VTWrite(data)
+		if rec != nil {
+			rec.WriteOutput(data)
 		}
 		for _, sub := range m.subscribers {
 			select {
@@ -194,8 +197,8 @@ func (m *ManagedTerminal) Close() {
 	m.close.Do(func() {
 		close(m.done)
 
-		if m.Recorder != nil {
-			m.Recorder.Close()
+		if rec := m.recPtr.Load(); rec != nil {
+			rec.Close()
 		}
 
 		m.KeyEncoder.Close()
@@ -233,8 +236,8 @@ func (m *ManagedTerminal) Resize(cols, rows uint16) error {
 	m.KeyEncoder.SetOptFromTerminal(m.Terminal)
 	m.MouseEncoder.SetOptFromTerminal(m.Terminal)
 
-	if m.Recorder != nil {
-		m.Recorder.WriteResize(int(cols), int(rows))
+	if rec := m.recPtr.Load(); rec != nil {
+		rec.WriteResize(int(cols), int(rows))
 	}
 
 	if m.Ptmx != nil {
@@ -248,42 +251,48 @@ func (m *ManagedTerminal) Resize(cols, rows uint16) error {
 }
 
 func (m *ManagedTerminal) StartRecording(path string, idleLimit float64) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	rec, err := recording.NewAsciicastRecorder(path, int(m.Cols), int(m.Rows), idleLimit)
 	if err != nil {
 		return err
 	}
-	m.Recorder = rec
+	if prev := m.recPtr.Swap(rec); prev != nil {
+		// Never leak the previous recorder's file handle; swap was atomic so
+		// output never misses a writer.
+		prev.Close()
+	}
 	return nil
 }
 
 func (m *ManagedTerminal) StopRecording() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.Recorder == nil {
+	rec := m.recPtr.Swap(nil)
+	if rec == nil {
 		return nil
 	}
-	err := m.Recorder.Close()
-	m.Recorder = nil
-	return err
+	return rec.Close()
+}
+
+// IsRecording reports whether an asciicast recording is running.
+func (m *ManagedTerminal) IsRecording() bool {
+	return m.recPtr.Load() != nil
 }
 
 func (m *ManagedTerminal) AddMarker(label string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.Recorder == nil {
+	rec := m.recPtr.Load()
+	if rec == nil {
 		return fmt.Errorf("not recording")
 	}
-	return m.Recorder.WriteMarker(label)
+	return rec.WriteMarker(label)
 }
 
 func (m *ManagedTerminal) WritePty(data []byte) (int, error) {
 	if m.Ptmx == nil {
 		return 0, fmt.Errorf("no PTY available")
+	}
+	if rec := m.recPtr.Load(); rec != nil {
+		rec.WriteInput(data)
 	}
 	return m.Ptmx.Write(data)
 }

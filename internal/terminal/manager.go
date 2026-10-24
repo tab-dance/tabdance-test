@@ -136,7 +136,7 @@ func (m *TerminalManager) List() []TerminalInfo {
 			Cols:      mt.Cols,
 			Rows:      mt.Rows,
 			Command:   mt.Command,
-			Recording: mt.Recorder != nil,
+			Recording: mt.IsRecording(),
 			Exited:    mt.exited,
 			ExitCode:  mt.exitCode,
 		})

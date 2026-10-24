@@ -77,7 +77,7 @@ func (d *Daemon) handleInspect(req Request) Response {
 	}
 
 	mt.Lock()
-	cols, rows, command, recording := mt.Cols, mt.Rows, mt.Command, mt.Recorder != nil
+	cols, rows, command, recording := mt.Cols, mt.Rows, mt.Command, mt.IsRecording()
 	mt.Unlock()
 
 	result := map[string]any{

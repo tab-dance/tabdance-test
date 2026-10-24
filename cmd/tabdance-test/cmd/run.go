@@ -108,9 +108,7 @@ func runTape(tapePath, goldenPath string, update bool) error {
 		return fmt.Errorf("execute tape: %w", err)
 	}
 
-	if mt.Recorder != nil {
-		mt.StopRecording()
-	}
+	mt.StopRecording()
 
 	if goldenPath == "" {
 		return nil
