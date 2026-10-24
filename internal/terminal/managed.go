@@ -409,14 +409,31 @@ func (m *ManagedTerminal) LastOutputTime() time.Time {
 func (m *ManagedTerminal) applyOSC133Locked(ev osc133Events) {
 	if ev.Prompt {
 		m.osc.prompt = time.Now()
+		m.osc.promptCount++
 	}
 	if ev.CommandEnd {
 		m.osc.commandEnd = time.Now()
+		m.osc.cmdEndCount++
 		if ev.HadCommandExit {
 			m.osc.commandExit = ev.CommandExit
 			m.osc.hadCommandExit = true
 		}
 	}
+}
+
+// PromptCount returns the number of OSC 133 prompt-start (A) markers seen.
+func (m *ManagedTerminal) PromptCount() int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.osc.promptCount
+}
+
+// CommandEndCount returns the number of OSC 133 command-finished (D)
+// markers seen.
+func (m *ManagedTerminal) CommandEndCount() int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.osc.cmdEndCount
 }
 
 // LastPromptTime returns when the last OSC 133 prompt-start marker (A)

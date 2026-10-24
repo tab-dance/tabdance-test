@@ -32,6 +32,7 @@ const (
 type extension struct {
 	kind    extKind
 	code    int
+	hasCode bool
 	cols    int
 	rows    int
 	pattern string
@@ -93,6 +94,19 @@ func parseExtension(kind extKind, rest string, line int) (extension, error) {
 	ext.timeout = dur
 
 	switch kind {
+	case extWaitCommand:
+		fields := strings.Fields(rest)
+		if len(fields) > 1 {
+			return ext, fmt.Errorf("WaitCommand takes an optional exit code, e.g. WaitCommand 0 @5s")
+		}
+		if len(fields) == 1 {
+			code, err := strconv.Atoi(fields[0])
+			if err != nil {
+				return ext, fmt.Errorf("WaitCommand code %q is not a number", fields[0])
+			}
+			ext.code = code
+			ext.hasCode = true
+		}
 	case extExpect:
 		re, scope, ok := splitRegex(rest)
 		if !ok {
@@ -102,8 +116,11 @@ func parseExtension(kind extKind, rest string, line int) (extension, error) {
 		ext.scope = scope
 	case extExpectExit:
 		fields := strings.Fields(rest)
-		if len(fields) != 1 {
-			return ext, fmt.Errorf("ExpectExit takes exactly one exit code")
+		if len(fields) > 1 {
+			return ext, fmt.Errorf("ExpectExit takes an optional exit code, e.g. ExpectExit 0")
+		}
+		if len(fields) == 0 {
+			return ext, nil // any exit status is accepted
 		}
 		code, err := strconv.Atoi(fields[0])
 		if err != nil {
@@ -216,7 +233,7 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 	case extWaitPrompt:
 		return e.waitPrompt(timeout)
 	case extWaitCommand:
-		return e.waitCommand(timeout)
+		return e.waitCommand(timeout, ext.code, ext.hasCode)
 	case extResize:
 		return e.resize(ext.cols, ext.rows)
 	}
@@ -371,11 +388,13 @@ func (e *TapeExecutor) newPlainFormatter() (*libghostty.Formatter, error) {
 }
 
 // waitPrompt blocks until the shell emits an OSC 133 prompt-start (A)
-// marker; this synchronizes on actual prompt redraws instead of guessing.
+// marker other than those before this verb, so it works anywhere in the
+// tape: initial prompt or the prompt redraw after a command.
 func (e *TapeExecutor) waitPrompt(timeout time.Duration) error {
+	base := e.terminal.PromptCount()
 	deadline := time.Now().Add(timeout)
 	for {
-		if !e.terminal.LastPromptTime().IsZero() {
+		if e.terminal.PromptCount() > base {
 			return nil
 		}
 		if time.Now().After(deadline) {
@@ -387,19 +406,34 @@ func (e *TapeExecutor) waitPrompt(timeout time.Duration) error {
 }
 
 // waitCommand blocks until the shell emits an OSC 133 command-finished
-// (D) marker after running a command.
-func (e *TapeExecutor) waitCommand(timeout time.Duration) error {
+// (D) marker newer than this verb. With a code argument the marker must
+// carry that exit status; markers without an exit code are ignored (the
+// shell may choose not to send one).
+func (e *TapeExecutor) waitCommand(timeout time.Duration, wantCode int, hasCode bool) error {
+	base := e.terminal.CommandEndCount()
 	deadline := time.Now().Add(timeout)
 	for {
-		if t, ok, _, hasExit := e.terminal.LastCommandEnd(); ok {
-			// Wait for the D marker itself; the exit code travels on it when
-			// the shell includes it (hasExit).
-			_ = t
-			_ = hasExit
-			return nil
+		if count := e.terminal.CommandEndCount(); count > base {
+			_, _, code, hasExit := e.terminal.LastCommandEnd()
+			if !hasCode {
+				return nil
+			}
+			if !hasExit {
+				// No status in the marker; keep waiting (rare).
+			} else if code == wantCode {
+				return nil
+			} else {
+				// The shell always sends its status, so a mismatch is a
+				// real failure.
+				return fmt.Errorf("command exited with status %d, expected %d (OSC 133 marker)", code, wantCode)
+			}
 		}
 		if time.Now().After(deadline) {
-			return e.timeoutError("no OSC 133 command-finished marker received within " + timeout.String() +
+			wording := "command-finished marker"
+			if hasCode {
+				wording = fmt.Sprintf("command-finished marker with status %d", wantCode)
+			}
+			return e.timeoutError("no OSC 133 " + wording + " within " + timeout.String() +
 				" (the shell must emit command markers, e.g. via shell integration)")
 		}
 		time.Sleep(20 * time.Millisecond)

@@ -92,9 +92,15 @@ func osc133Exit(params string) (int, bool) {
 }
 
 // osc133State holds the recognized events for a terminal.
+// osc133State holds the recognized events for a terminal. Counters are
+// monotonic so waiters can snapshot-and-compare without timestamp skew:
+// markers arriving in one read chunk share a timestamp but always get
+// distinct counter values.
 type osc133State struct {
 	prompt         time.Time
+	promptCount    int64
 	commandEnd     time.Time
+	cmdEndCount    int64
 	commandExit    int
 	hadCommandExit bool
 }

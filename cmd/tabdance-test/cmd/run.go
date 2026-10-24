@@ -58,7 +58,6 @@ func runTape(tapePath, goldenPath string, update bool) (progress []string, err e
 	if runTerm != "" {
 		env["TERM"] = runTerm
 	}
-
 	settings, err := tape.ParseSettings(tapePath)
 	if err != nil {
 		return progress, fmt.Errorf("parse tape settings: %w", err)
@@ -76,6 +75,15 @@ func runTape(tapePath, goldenPath string, update bool) (progress []string, err e
 	shellCommand := "sh"
 	if settings.Shell != "" {
 		shellCommand = tape.ShellToCommand(settings.Shell)
+	}
+	if shellCommand == "bash --norc --noprofile" && !runNoPromptIntegration {
+		// Inject OSC 133 shell integration via the environment: no rc
+		// files, fully deterministic, and tapes can then synchronize on
+		// real prompt/command markers with WaitPrompt/WaitCommand. The
+		// printf emits escape bytes, not rendered text, so goldens are
+		// unaffected.
+		env["PROMPT_COMMAND"] = `printf '\033]133;D;%s\007\033]133;A\007' "$?"`
+		env["PS0"] = `\033]133;C\007`
 	}
 
 	timeout := time.Duration(runTimeout * float64(time.Second))
@@ -298,19 +306,20 @@ func runDirectory(dir string) error {
 }
 
 var (
-	runGoldenPath string
-	runUpdate     bool
-	runCols       int
-	runRows       int
-	runScrollback int
-	runTimeout    float64
-	runRecordPath string
-	runEnv        []string
-	runWorkingDir string
-	runJsonOutput bool
-	runStrict     bool
-	runTerm       string
-	runJobs       int
+	runGoldenPath          string
+	runUpdate              bool
+	runCols                int
+	runRows                int
+	runScrollback          int
+	runTimeout             float64
+	runRecordPath          string
+	runEnv                 []string
+	runWorkingDir          string
+	runJsonOutput          bool
+	runStrict              bool
+	runTerm                string
+	runJobs                int
+	runNoPromptIntegration bool
 )
 
 func runStrictCheck(tapePath string) error {
@@ -334,6 +343,7 @@ func init() {
 	runCmd.Flags().BoolVar(&runStrict, "strict", false, "reject tapes containing Sleep verbs (determinism guard)")
 	runCmd.Flags().StringVar(&runTerm, "term", "", "override the TERM environment variable for the child process")
 	runCmd.Flags().IntVar(&runJobs, "jobs", 1, "number of tapes to run concurrently (directory mode only)")
+	runCmd.Flags().BoolVar(&runNoPromptIntegration, "no-prompt-integration", false, "do not inject OSC 133 shell integration for bash tapes")
 
 	rootCmd.AddCommand(runCmd)
 

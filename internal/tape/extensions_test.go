@@ -126,3 +126,15 @@ func TestResizeExtensionVerb(t *testing.T) {
 		t.Fatalf("terminal did not resize: %dx%d", mt.Cols, mt.Rows)
 	}
 }
+
+func TestParseBareExpectExit(t *testing.T) {
+	// No-code ExpectExit must parse; run-level behavior is covered by the
+	// exec-based tests since the executor already supports code = -1.
+	extensions, _, err := splitExtensions("ExpectExit\nType \"x\"\nEnter\n")
+	if err != nil {
+		t.Fatalf("bare ExpectExit should parse: %v", err)
+	}
+	if len(extensions) != 1 || extensions[0].kind != extExpectExit || extensions[0].code != 0 {
+		t.Fatalf("unexpected parse result: %+v", extensions)
+	}
+}

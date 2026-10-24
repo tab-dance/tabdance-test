@@ -307,12 +307,13 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Wait scope normalization**: `wait.WaitFor` accepts `screen`/`line` case-insensitively (including the `+Line`/`+line` forms); tape `Wait` commands go through the same implementation, so there is exactly one poll loop.
 - **Output history ring buffer**: Every `ManagedTerminal` keeps the last 32KB of child output (`RecentOutput(n)`) plus `LastOutputTime()`. Wait/verify failures and the `output` CLI command / `get_output` MCP tool consume it; never read `Ptmx` for history.
 - **Child exit state is always recorded**: The reaper goroutine in `startPTY` calls `recordExit`; `ExitState()` returns (exited, exitCode, signal). Tape verbs `ExpectExit`/`WaitExit` and the inspect/list surfaces are built on it.
+- **Bash integration is auto-injected by `run`**: tapes with `Set Shell "bash"` get PROMPT_COMMAND/PS0 emitting OSC 133 D/A/C markers (env-only, no rc files, invisible to the rendered screen); `--no-prompt-integration` disables it. Daemon-backed `tape` runs are untouched (existing child process).
 - **Determinism guards**: `run --strict` and the `run_tape strict` parameter reject `Sleep` verbs via `tape.CheckStrict`.
 - **Failure diagnostics carry context**: wait timeouts and Expect failures include the rendered screen (`--- screen ---`) and recent PTY traffic (`wait.Repr`), not just the pattern.
 
 ## Tape Extension Verbs
 
-Lines at the start of a tape line may use seven verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` / `WaitCommand[@dur]` (OSC 133 semantic markers; require a shell with prompt integration), and `Resize <cols> <rows>` (used by the cast2tape converter; applies at the point the line occurs). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
+Lines at the start of a tape line may use seven verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` / `WaitCommand[<code>][@dur]` (OSC 133 semantic markers; `WaitCommand` also asserts the shell-reported exit status; counting semantics: each verb snapshots the marker counter at execution, so exactly one sync point per command — do not chain both verbs on one command), and `Resize <cols> <rows>` (used by the cast2tape converter; applies at the point the line occurs). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
 
 ## Gotchas
 

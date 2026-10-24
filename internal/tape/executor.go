@@ -40,6 +40,8 @@ type Terminal interface {
 	ExitState() (exited bool, exitCode int, signal string)
 	LastPromptTime() time.Time
 	LastCommandEnd() (t time.Time, ok bool, exitCode int, hasExit bool)
+	PromptCount() int64
+	CommandEndCount() int64
 }
 
 func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor {

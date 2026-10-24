@@ -53,7 +53,9 @@ func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor
 | `Sleep T` | `time.Sleep(parseDuration(T))` |
 | `Wait /pattern/` | Poll `Formatter.FormatString()` until regex matches |
 
-Extension verbs (executed inline, not VHS): `ExpectExit <code> @5s`, `WaitExit @5s`, `WaitStable @250ms`, `Expect /re/ [+Screen|+Line]`, `WaitPrompt @5s` (OSC 133 prompt marker), `WaitCommand @5s` (OSC 133 command-finished marker), and `Resize 80 24` (applies at that point in the tape).
+Extension verbs (executed inline, not VHS): `ExpectExit <code> @5s`, `WaitExit @5s`, `WaitStable @250ms`, `Expect /re/ [+Screen|+Line]`, `WaitPrompt @5s` (OSC 133 prompt marker), `WaitCommand 0 @5s` (OSC 133 command-finished marker, also asserting the shell-reported exit status), and `Resize 80 24` (applies at that point in the tape).
+
+Both OSC verbs snapshot the marker counter when they run: one sync point per command. Prefer `WaitCommand` right after `Enter` (it carries the exit status); `WaitPrompt` asserts the prompt is ready for the NEXT command, so don't put both after the same Enter — the second verb's snapshot lands after both markers have arrived and it hangs until the next command produces markers. `run` injects OSC 133 integration for bash tapes automatically.
 | `Wait+Screen /pattern/` | Match against full screen content |
 | `Wait+Line /pattern/` | Match against cursor's current line |
 | `Set Width/Height` | `term.Resize()` + PTY resize |
