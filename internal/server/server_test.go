@@ -321,3 +321,14 @@ func parseResult(result *mcp.CallToolResult, v any) error {
 	}
 	return json.Unmarshal([]byte(tc.Text), v)
 }
+
+func TestGetOutput(t *testing.T) {
+	s := New("test")
+
+	result, _ := s.handleGetOutput(context.Background(), makeRequest(map[string]any{
+		"terminal_id": "nonexistent",
+	}))
+	if !result.IsError {
+		t.Fatal("expected error result for invalid terminal_id")
+	}
+}

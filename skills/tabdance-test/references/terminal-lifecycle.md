@@ -75,6 +75,16 @@ go func() {
 }()
 ```
 
+## Teardown and Exit State
+
+`pty.StartWithSize` makes the child a session leader, so `Close()` tears the whole tree down with negative-PID `syscall.Kill(-childPid, ...)`: SIGTERM to the group (including `sh -c` grandchildren and TUI children), 100ms grace, then SIGKILL. A reaper goroutine wraps `cmd.Wait()` and records the child's termination under the terminal mutex.
+
+`ExitState()` returns `(exited, exitCode, signal)`:
+- normal exit: `exited=true, exitCode=3, signal=""`
+- signal death: `exited=true, exitCode=-1, signal="killed"`
+
+`RecentOutput(n)` and `LastOutputTime()` expose the 32KB output ring buffer and the last-write timestamps, which power the `output` command, `get_output` MCP tool, `WaitStable`, and rich failure diagnostics.
+
 ## Bidirectional Communication
 
 ```

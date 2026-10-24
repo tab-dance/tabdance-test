@@ -96,6 +96,19 @@ Key differences from VHS CLI parser API:
 - `parser.New(l)` takes the lexer as argument (not `parser.New()`)
 - `p.Parse()` returns `[]Command` with no error (check `p.Errors()` separately)
 
+## Extension Verbs (tabdance-test additions)
+
+Lines starting with these four verbs are executed inline by the tabdance-test executor and are NOT part of VHS:
+
+| Verb | Meaning |
+|------|---------|
+| `ExpectExit <code> @5s` | Wait for the child to exit, then assert its exit code (signal exits never match) |
+| `WaitExit @5s` | Wait for the child to exit (any status) |
+| `WaitStable @250ms` | Wait until no output for the given quiet window |
+| `Expect /ready/ [+Screen|+Line]` | Assert immediately that the pattern is already on screen (no waiting) |
+
+Durations default to the tape's `Set WaitTimeout` / `--timeout`. `ParseSettings` strips these lines before the VHS parser so `Set Shell`/size settings keep working with `run`.
+
 ## Wait Implementation
 
 The `Wait` command polls terminal content at 50ms intervals:

@@ -3,9 +3,9 @@ package tape
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/charmbracelet/vhs/lexer"
 	"github.com/charmbracelet/vhs/parser"
 	"github.com/charmbracelet/vhs/token"
 	libghostty "go.mitchellh.com/libghostty"
@@ -35,6 +35,9 @@ type Terminal interface {
 	GetMouseEncoder() *libghostty.MouseEncoder
 	Resize(cols, rows uint16) error
 	AddMarker(label string) error
+	RecentOutput(n int) []byte
+	LastOutputTime() time.Time
+	ExitState() (exited bool, exitCode int, signal string)
 }
 
 func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor {
@@ -54,15 +57,61 @@ func (e *TapeExecutor) Execute(tapePath string) error {
 	if err != nil {
 		return fmt.Errorf("read tape: %w", err)
 	}
+	return e.ExecuteString(string(data))
+}
 
-	l := lexer.New(string(data))
-	p := parser.New(l)
-	commands := p.Parse()
-
-	if errs := p.Errors(); len(errs) > 0 {
-		return fmt.Errorf("parse tape: %s", errs[0].Msg)
+// ExecuteString plays a tape from an in-memory source. Tabdance-test
+// extension verbs (ExpectExit, WaitExit, WaitStable, Expect) are executed
+// inline, interleaved with the VHS commands around them.
+func (e *TapeExecutor) ExecuteString(src string) error {
+	exts, segments, err := splitExtensions(src)
+	if err != nil {
+		return err
 	}
 
+	if len(exts) == 0 {
+		commands, err := parseCommands(src)
+		if err != nil {
+			return err
+		}
+		return e.executeCommands(commands)
+	}
+
+	for i, seg := range segments {
+		if strings.TrimSpace(seg) != "" {
+			commands, err := parseCommands(seg)
+			if err != nil {
+				return err
+			}
+			if err := e.executeCommands(commands); err != nil {
+				return err
+			}
+		}
+		if i < len(exts) {
+			if err := e.executeExtension(exts[i], e.timeout); err != nil {
+				return fmt.Errorf("%s (line %d): %w", extVerbName(exts[i]), exts[i].line, err)
+			}
+		}
+	}
+	return nil
+}
+
+func extVerbName(ext extension) string {
+	switch ext.kind {
+	case extExpectExit:
+		return "ExpectExit"
+	case extWaitExit:
+		return "WaitExit"
+	case extWaitStable:
+		return "WaitStable"
+	case extExpect:
+		return "Expect"
+	default:
+		return "extension"
+	}
+}
+
+func (e *TapeExecutor) executeCommands(commands []parser.Command) error {
 	for _, cmd := range commands {
 		if err := e.executeCommand(cmd); err != nil {
 			return fmt.Errorf("execute command %s: %w", cmd.Type, err)

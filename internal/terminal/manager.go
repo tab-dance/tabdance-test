@@ -120,6 +120,8 @@ type TerminalInfo struct {
 	Rows      uint16 `json:"rows"`
 	Command   string `json:"command"`
 	Recording bool   `json:"recording"`
+	Exited    bool   `json:"exited"`
+	ExitCode  int    `json:"exit_code"`
 }
 
 func (m *TerminalManager) List() []TerminalInfo {
@@ -135,6 +137,8 @@ func (m *TerminalManager) List() []TerminalInfo {
 			Rows:      mt.Rows,
 			Command:   mt.Command,
 			Recording: mt.Recorder != nil,
+			Exited:    mt.exited,
+			ExitCode:  mt.exitCode,
 		})
 		mt.mu.Unlock()
 	}

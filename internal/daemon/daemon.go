@@ -249,6 +249,8 @@ func (d *Daemon) handleRequest(req Request) Response {
 		return d.handleRecord(req)
 	case "stop":
 		return d.handleStop(req)
+	case "output":
+		return d.handleOutput(req)
 	case "marker":
 		return d.handleMarker(req)
 	case "ping":

@@ -319,6 +319,17 @@ Execute a VHS tape file against a terminal.
 }
 ```
 
+#### `get_output`
+
+Get the terminal's recent raw PTY output (last `bytes` bytes, control bytes rendered visibly like `\x1b[...`). Best friend of wait/verify debugging: when a wait times out, the error text already contains the screen and recent output.
+
+**Input:**
+```json
+{"terminal_id": "bold_sutherland", "bytes": 4096}
+```
+
+**Output:** a text result containing the rendered bytes.
+
 #### `run_tape`
 
 The `run` command as a tool: creates a fresh terminal from the tape's `Set Shell`/`Set Width`/`Set Height` settings, plays the tape, optionally verifies (or updates) a golden file, then closes the terminal.
@@ -329,11 +340,12 @@ The `run` command as a tool: creates a fresh terminal from the tape's `Set Shell
   "tape_path": "test.tape",
   "timeout": 30,
   "golden_path": "testdata/golden.txt",
-  "update": false
+  "update": false,
+  "strict": false
 }
 ```
 
-**Output on match:** `{"match": true}` - **On mismatch:** tool error with the unified diff - **Without `golden_path`:** `tape "test.tape" executed`
+**Output on match:** `{"match": true}` (+ `exit_code`/`exit_signal` when the child already exited) - **On mismatch:** tool error with the unified diff and the child's exit status - **Without `golden_path`:** `tape "test.tape" executed`
 
 ### Golden File Verification
 

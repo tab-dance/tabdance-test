@@ -77,15 +77,24 @@ func (d *Daemon) handleInspect(req Request) Response {
 	}
 
 	mt.Lock()
-	defer mt.Unlock()
+	cols, rows, command, recording := mt.Cols, mt.Rows, mt.Command, mt.Recorder != nil
+	mt.Unlock()
 
-	return SuccessResponse(map[string]any{
+	result := map[string]any{
 		"id":        mt.ID,
-		"cols":      mt.Cols,
-		"rows":      mt.Rows,
-		"command":   mt.Command,
-		"recording": mt.Recorder != nil,
-	})
+		"cols":      cols,
+		"rows":      rows,
+		"command":   command,
+		"recording": recording,
+	}
+	if exited, code, signal := mt.ExitState(); exited {
+		result["exited"] = true
+		result["exit_code"] = code
+		if signal != "" {
+			result["exit_signal"] = signal
+		}
+	}
+	return SuccessResponse(result)
 }
 
 func (d *Daemon) handleRm(req Request) Response {

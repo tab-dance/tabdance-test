@@ -78,3 +78,22 @@ func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 		}
 	}
 }
+
+// handleOutput returns the terminal's recent raw PTY output. Control
+// bytes are rendered visibly so agents can read escape sequences.
+func (d *Daemon) handleOutput(req Request) Response {
+	id := req.GetString("id")
+	bytes := req.GetInt("bytes")
+	if bytes <= 0 {
+		bytes = 4096
+	}
+
+	mt, err := d.manager.Get(id)
+	if err != nil {
+		return ErrorResponse(err.Error())
+	}
+
+	return SuccessResponse(map[string]any{
+		"output": string(mt.RecentOutput(bytes)),
+	})
+}

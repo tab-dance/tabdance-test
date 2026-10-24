@@ -111,6 +111,7 @@ tabdance-test
 ├── cursor <id>                  # Print cursor state (--json)
 ├── size <id>                    # Print dimensions (--json)
 ├── cell <id> <x> <y>           # Inspect cell (--json)
+├── output <id> [bytes]         # Print recent raw PTY output (diagnostics)
 ├── send <id> <text>            # Send raw text
 ├── keys <id> <key...>          # Send key events
 ├── mouse <id> <action> <button> <x> <y>  # Send mouse event
@@ -119,13 +120,15 @@ tabdance-test
 ├── resize <id> <cols> <rows>   # Resize terminal
 ├── tape <id> <path>            # Play .tape file (--timeout)
 ├── wait <id> <pattern>         # Wait for regex (--scope, --timeout, --json, exit 1 on timeout)
+│   (wait failures include the screen at timeout and recent PTY traffic)
 ├── verify <id> <golden>        # Verify against golden file (--json, exit 1 on mismatch)
 ├── snapshot <id> <golden>      # Update/create golden file
 ├── record <id> <path>          # Start asciinema recording (--stop ends it)
 ├── marker <id> <label>          # Add recording marker
+├── doctor                       # Environment preflight checks (spawns nothing)
 └── run <tape>                   # Daemon-free: play tape, verify, exit 0/1
     --golden / --update / --cols / --rows / --scrollback / --timeout
-    --record / --env / --json (per-tape dir summary)
+    --record / --env / --json (per-tape dir summary) / --strict (no Sleep)
 ```
 
 ## Code Organization
@@ -156,9 +159,11 @@ cmd/tabdance-test/
     verify.go                # `verify` subcommand
     snapshot.go              # `snapshot` subcommand
     record.go                # `record` subcommand (--stop flag)
-    flags.go                 # Shared --format/--trim/--unwrap output flag helper
     marker.go                # `marker` subcommand
     run.go                   # `run` subcommand (daemon-free, in-process runner)
+    output.go                # `output` subcommand (recent PTY traffic)
+    doctor.go                # `doctor` subcommand (environment preflight)
+    flags.go                 # Shared --format/--trim/--unwrap output flag helper
     client.go                # newClient() and parseKeyValue() helpers
 
 pkg/
@@ -175,17 +180,17 @@ internal/
     handler_inspect.go       # Daemon handlers: view, cursor, size, cell
     handler_tape.go          # Daemon handlers: resize, tape, wait
     handler_golden.go        # Daemon handlers: verify, snapshot
-    handler_recording.go     # Daemon handlers: record, stop, marker, attach
+    handler_recording.go     # Daemon handlers: record, stop, marker, attach, output
   client/
     client.go                # Client struct, connect, Call
     daemon.go                # Auto-start logic: EnsureDaemon, IsDaemonRunning
     attach.go                # Streaming attach client
-    terminal.go              # Terminal methods: Exec, Ls, Inspect, Kill, Rm
+    terminal.go              # Terminal methods: Exec, Ls, Inspect, Rm
     inspect.go               # Inspect methods: View, Cursor, Size, Cell (reuse inspect.*Result DTOs)
     input.go                 # Input methods: Send, Keys, Mouse, Paste, Focus, Resize
     tape.go                  # Tape/wait methods: Tape, Wait (reuses wait.WaitForResult)
     golden.go                # Golden methods: Verify, Snapshot (reuses golden.VerifyResult)
-    recording.go             # Recording methods: Record, Stop, Marker
+    recording.go             # Recording methods: Record, Stop (via `record --stop`), Marker
   server/
     server.go                # Server struct, New(version), Run
     tools.go                 # Tool registration (registerTools)
@@ -194,15 +199,16 @@ internal/
     handler_inspect.go       # MCP handlers: get_view, get_cell, get_cursor, get_size
     handler_recording.go     # MCP handlers: start_recording, stop_recording, add_marker
     handler_tape.go          # MCP handlers: play_tape
+    handler_run.go           # MCP handler: run_tape (play + golden verify, strict option, exit info)
+    handler_wait.go          # MCP handler: wait_for (failures include screen + recent output)
     handler_golden.go        # MCP handlers: verify_output (errors on mismatch), update_golden
-    handler_run.go           # MCP handler: run_tape (play + golden verify in one call)
-    handler_wait.go          # MCP handlers: wait_for
     server_test.go           # Integration tests
   terminal/
     manager.go               # TerminalManager: Create/Get/List/Delete/CloseAll, collision-free random IDs
     managed.go               # ManagedTerminal: terminal + PTY lifecycle, encoders, recorder, mutex
     subscriber.go            # outputSubscriber: broadcast channel for PTY output
     manager_test.go          # Uniqueness/list/delete/name-list tests
+    lifecycle_test.go        # Exit-state capture, history ring, group teardown
   input/
     keys.go                  # SendKeys: ParseKey/ParseMods, Kitty keyboard press+release
     mouse.go                 # SendMouse: ParseMouseButton, scroll_up/scroll_down via button 4/5
@@ -219,6 +225,7 @@ internal/
   tape/
     executor.go              # TapeExecutor struct, Execute, executeCommand, executeSet
     execute.go               # Tape execution: executeType, sendKeys, executeCtrl/Alt/Shift, executeSleep, executeWait
+    extensions.go            # Extension verbs: ExpectExit, WaitExit, WaitStable, Expect; CheckStrict
     parse.go                 # ParseSettings, ShellToCommand, parseCount, parseDuration, parseTypingSpeed, parse*Combo
     executor_test.go         # Tests
   golden/
@@ -235,12 +242,12 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## MCP Tool Summary
 
-21 tools registered in `tools.go:registerTools()`:
+22 tools registered in `tools.go:registerTools()`:
 
 || Tool | Input | Output |
 ||------|-------|--------|
 || `create_terminal` | cols, rows, scrollback, command, env, working_directory | terminal_id, cols, rows |
-|| `list_terminals` | — | terminals[] (id, cols, rows, command, recording) |
+|| `list_terminals` | — | terminals[] (id, cols, rows, command, recording, exited, exit_code) |
 || `close_terminal` | terminal_id | — |
 || `reset_terminal` | terminal_id | — |
 || `resize` | terminal_id, cols, rows | — |
@@ -257,7 +264,8 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 || `stop_recording` | terminal_id | — |
 || `add_marker` | terminal_id, label | — |
 || `play_tape` | terminal_id, tape_path, timeout | — |
-| `run_tape` | tape_path, timeout, golden_path, update | success JSON on match; tool error with diff on mismatch |
+| `get_output` | terminal_id, bytes | recent raw PTY output (control bytes rendered) |
+| `run_tape` | tape_path, timeout, golden_path, update, strict | match JSON (+exit_code/exit_signal when the child exited); tool error with diff on mismatch |
 || `verify_output` | terminal_id, golden_path, format, trim, unwrap | JSON match result; tool error with diff on mismatch |
 || `update_golden` | terminal_id, golden_path, format, trim, unwrap | — |
 || `wait_for` | terminal_id, pattern, scope, timeout, format, trim, unwrap | found, elapsed_ms; tool error on timeout |
@@ -285,6 +293,14 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Shared result types**: The client returns `inspect.*Result`, `golden.VerifyResult`, `wait.WaitForResult`, and `terminal.TerminalInfo` directly — daemon, MCP and CLI layers all serialize the same DTOs. Do not re-declare client-local structs.
 - **Tri-state bool params**: Daemon requests use `req.GetBoolDefault(key, def)` when absence must fall back to a non-false default (e.g. `trim`/`unwrap`).
 - **Wait scope normalization**: `wait.WaitFor` accepts `screen`/`line` case-insensitively (including the `+Line`/`+line` forms); tape `Wait` commands go through the same implementation, so there is exactly one poll loop.
+- **Output history ring buffer**: Every `ManagedTerminal` keeps the last 32KB of child output (`RecentOutput(n)`) plus `LastOutputTime()`. Wait/verify failures and the `output` CLI command / `get_output` MCP tool consume it; never read `Ptmx` for history.
+- **Child exit state is always recorded**: The reaper goroutine in `startPTY` calls `recordExit`; `ExitState()` returns (exited, exitCode, signal). Tape verbs `ExpectExit`/`WaitExit` and the inspect/list surfaces are built on it.
+- **Determinism guards**: `run --strict` and the `run_tape strict` parameter reject `Sleep` verbs via `tape.CheckStrict`.
+- **Failure diagnostics carry context**: wait timeouts and Expect failures include the rendered screen (`--- screen ---`) and recent PTY traffic (`wait.Repr`), not just the pattern.
+
+## Tape Extension Verbs
+
+Lines at the start of a tape line may use four verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), and `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
 
 ## Gotchas
 
@@ -309,6 +325,8 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **`mcp` subcommand uses `server.New(version)`**: Not `daemon.New()`. The MCP server is a stdio JSON-RPC server; the daemon is a Unix socket server. The version string comes from `internal/version`.
 - **Daemon socket path**: `~/.local/share/tabdance-test/daemon.sock` (override with `TABDANCE_TEST_SOCK`). PID file at `~/.local/share/tabdance-test/daemon.pid`, plus `daemon.pid.lock` (flock held for the daemon's lifetime, never deleted). Socket dir is 0700, socket file 0600.
 - **Daemon idle timeout**: 30s after last terminal closed and no client connected (override with `TABDANCE_TEST_IDLE_TIMEOUT`).
+- **The child is a session leader with its own process group**: `pty.StartWithSize` sets `Setsid`, so teardown kills the group with negative-PID `syscall.Kill(-pgid, ...)` (SIGTERM then SIGKILL); do not signal `cmd.Process` directly, TUI grandchildren would survive.
+- **VHS `Wait` syntax is picky**: `Wait+Screen /re/` and `Wait+Line /re/` are the forms with a pattern; bare `Wait` has NO pattern (instant match). Options like `@5s` use `@` (parsed via `parseTypingSpeed`, not `time.ParseDuration`).
 - **Daemon shutdown is signal-driven**: SIGINT/SIGTERM remove the socket and pid files and close all terminals. The flock lock file is intentionally kept on disk (deleting it would race lock waiters).
 - **Child processes are reaped exactly once**: `startPTY` spawns a goroutine calling `cmd.Wait()`; do not add another wait — it would degrade into double-wait races. Testing shells must not rely on `SIGTERM` semantics other than the existing SIGTERM-then-SIGKILL escalation in `Close`.
 

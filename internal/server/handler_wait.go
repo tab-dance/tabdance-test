@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/tab-dance/tabdance-test/internal/inspect"
+	"github.com/tab-dance/tabdance-test/internal/terminal"
 	"github.com/tab-dance/tabdance-test/internal/wait"
 )
 
@@ -44,8 +46,27 @@ func (s *Server) handleWaitFor(_ context.Context, req mcp.CallToolRequest) (*mcp
 	}
 
 	if !result.Found {
-		return mcp.NewToolResultError(fmt.Sprintf("pattern %q not found within %v", pattern, timeout)), nil
+		return mcp.NewToolResultError(waitFailureDetail(pattern, timeout, mt, format, trim, unwrap)), nil
 	}
 
 	return mcp.NewToolResultText(result.ToJSON()), nil
+}
+
+// waitFailureDetail augments a wait timeout with the rendered screen and
+// the last PTY traffic so failures are diagnosable without attach.
+func waitFailureDetail(pattern string, timeout time.Duration, mt *terminal.ManagedTerminal, format string, trim, unwrap bool) string {
+	mt.Lock()
+	view, err := inspect.GetView(mt.Terminal, format, trim, unwrap)
+	mt.Unlock()
+
+	msg := fmt.Sprintf("pattern %q not found within %v", pattern, timeout)
+	if err != nil {
+		return fmt.Sprintf("%s\n(could not render screen: %v)", msg, err)
+	}
+	recent := mt.RecentOutput(2048)
+	detail := msg + "\n--- screen at timeout ---\n" + view.Content
+	if len(recent) > 0 {
+		detail += fmt.Sprintf("\n--- recent output (last %d bytes) ---\n%s", len(recent), wait.Repr(recent))
+	}
+	return detail
 }

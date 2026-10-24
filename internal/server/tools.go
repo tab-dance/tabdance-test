@@ -99,6 +99,12 @@ func (s *Server) registerTools() {
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
 	), s.handleGetSize)
 
+	s.mcp.AddTool(mcp.NewTool("get_output",
+		mcp.WithDescription("Get the terminal's recent raw PTY output (control bytes rendered visibly). Use when a wait or verify needs debugging or after a process exit."),
+		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),
+		mcp.WithNumber("bytes", mcp.Description("How many of the last bytes to return (default 4096, max 32768)")),
+	), s.handleGetOutput)
+
 	s.mcp.AddTool(mcp.NewTool("start_recording",
 		mcp.WithDescription("Start asciinema recording for a terminal"),
 		mcp.WithString("terminal_id", mcp.Required(), mcp.Description("Terminal ID")),

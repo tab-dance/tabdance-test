@@ -24,10 +24,16 @@ func (s *Server) handleRunTape(_ context.Context, req mcp.CallToolRequest) (*mcp
 	timeout := time.Duration(req.GetInt("timeout", 30)) * time.Second
 	goldenPath := req.GetString("golden_path", "")
 	update := req.GetBool("update", false)
+	strict := req.GetBool("strict", false)
 
 	settings, err := tape.ParseSettings(tapePath)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("parse tape settings: %v", err)), nil
+	}
+	if strict {
+		if err := tape.CheckStrict(tapePath); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
 	}
 
 	cols := 108
@@ -87,9 +93,32 @@ func (s *Server) handleRunTape(_ context.Context, req mcp.CallToolRequest) (*mcp
 	}
 
 	if !result.Match {
-		return mcp.NewToolResultError(fmt.Sprintf("FAIL\n%s", result.Diff)), nil
+		return mcp.NewToolResultError(runTapeFailure(mt, result.Diff)), nil
 	}
+	return mcp.NewToolResultText(runTapeResultJSON(mt, result)), nil
+}
 
-	data, _ := json.Marshal(result)
-	return mcp.NewToolResultText(string(data)), nil
+// runTapeResultJSON marshals the verification result, adding the child's
+// exit status when it has already terminated.
+func runTapeResultJSON(mt *terminal.ManagedTerminal, result *golden.VerifyResult) string {
+	out := map[string]any{"match": result.Match}
+	if exited, code, signal := mt.ExitState(); exited {
+		out["exit_code"] = code
+		out["exit_signal"] = signal
+	}
+	data, _ := json.Marshal(out)
+	return string(data)
+}
+
+// runTapeFailure renders a verification failure with child exit status.
+func runTapeFailure(mt *terminal.ManagedTerminal, diff string) string {
+	msg := fmt.Sprintf("FAIL\n%s", diff)
+	if _, code, signal := mt.ExitState(); code != 0 || signal != "" {
+		if signal != "" {
+			msg += fmt.Sprintf("\n(child killed by signal %s)", signal)
+		} else {
+			msg += fmt.Sprintf("\n(child exited with code %d)", code)
+		}
+	}
+	return msg
 }

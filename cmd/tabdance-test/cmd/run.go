@@ -32,7 +32,10 @@ var runCmd = &cobra.Command{
 			return runDirectory(args[0])
 		}
 
-		err = runTape(args[0], runGoldenPath, runUpdate)
+		err = runStrictCheck(args[0])
+		if err == nil {
+			err = runTape(args[0], runGoldenPath, runUpdate)
+		}
 		if err != nil && runGoldenPath != "" && !runUpdate {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 			os.Exit(1)
@@ -159,6 +162,11 @@ func runDirectory(dir string) error {
 			}
 		}
 		fmt.Fprintf(os.Stderr, "== %s\n", filepath.Base(tapePath))
+		if err := runStrictCheck(tapePath); err != nil {
+			fmt.Fprintf(os.Stderr, "%s\n", err)
+			failed = append(failed, filepath.Base(tapePath))
+			continue
+		}
 		if err := runTape(tapePath, goldenPath, runUpdate); err != nil {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 			failed = append(failed, filepath.Base(tapePath))
@@ -198,7 +206,15 @@ var (
 	runEnv        []string
 	runWorkingDir string
 	runJsonOutput bool
+	runStrict     bool
 )
+
+func runStrictCheck(tapePath string) error {
+	if !runStrict {
+		return nil
+	}
+	return tape.CheckStrict(tapePath)
+}
 
 func init() {
 	runCmd.Flags().StringVar(&runGoldenPath, "golden", "", "golden file to verify against (derived from the tape name when running a directory)")
@@ -211,6 +227,7 @@ func init() {
 	runCmd.Flags().StringArrayVar(&runEnv, "env", nil, "environment variables (key=value, repeatable)")
 	runCmd.Flags().StringVar(&runWorkingDir, "working-directory", "", "working directory for the child process")
 	runCmd.Flags().BoolVar(&runJsonOutput, "json", false, "when running a directory, print the aggregated result as JSON")
+	runCmd.Flags().BoolVar(&runStrict, "strict", false, "reject tapes containing Sleep verbs (determinism guard)")
 
 	rootCmd.AddCommand(runCmd)
 

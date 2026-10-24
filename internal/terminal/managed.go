@@ -32,7 +32,20 @@ type ManagedTerminal struct {
 	done        chan struct{}
 	close       sync.Once
 	subscribers []*outputSubscriber
+	// lastOutputTime is when the child last wrote output; used by
+	// quiet-period waits.
+	lastOutputTime time.Time
+	// history is the last maxOutputHistory bytes written by the child.
+	history []byte
+	// Child exit state, recorded once cmd.Wait returns in startPTY.
+	exited     bool
+	exitCode   int
+	exitSignal string
 }
+
+// maxOutputHistory caps the ring buffer of recent child output kept per
+// terminal for failure diagnostics and the output command.
+const maxOutputHistory = 32 * 1024
 
 type CreateConfig struct {
 	Cols             uint16
@@ -126,10 +139,11 @@ func (m *ManagedTerminal) startPTY(cfg CreateConfig) error {
 	m.ptmxPtr.Store(ptmx)
 
 	go m.ptyReadLoop()
-	// Reap the child process once it exits (or is killed on Close) so it
-	// does not linger as a zombie in the daemon.
+	// Reap the child and record its exit state (code, signal) so tests can
+	// assert on it; a zombie never lingers in the daemon.
 	go func() {
 		_ = cmd.Wait()
+		m.recordExit(cmd)
 	}()
 
 	return nil
@@ -155,6 +169,11 @@ func (m *ManagedTerminal) ptyReadLoop() {
 		data := buf[:n]
 
 		m.mu.Lock()
+		m.lastOutputTime = time.Now()
+		m.history = append(m.history, data...)
+		if overflow := len(m.history) - maxOutputHistory; overflow > 0 {
+			m.history = m.history[overflow:]
+		}
 		m.Terminal.VTWrite(data)
 		if m.Recorder != nil {
 			m.Recorder.WriteOutput(data)
@@ -180,10 +199,13 @@ func (m *ManagedTerminal) Close() {
 		m.KeyEncoder.Close()
 		m.MouseEncoder.Close()
 
-		if m.Cmd != nil && m.Cmd.Process != nil {
-			m.Cmd.Process.Signal(syscall.SIGTERM)
+		if pgid := m.childPgid(); pgid > 0 {
+			// pty.StartWithSize makes the child a session leader (Setsid), so
+			// the negative PID targets the whole group including descendants
+			// our direct child spawned (`sh -c` expansions, TUI children).
+			syscall.Kill(-pgid, syscall.SIGTERM)
 			time.Sleep(100 * time.Millisecond)
-			m.Cmd.Process.Kill()
+			syscall.Kill(-pgid, syscall.SIGKILL)
 		}
 
 		if m.Ptmx != nil {
@@ -295,4 +317,74 @@ func (m *ManagedTerminal) Unsubscribe(sub *outputSubscriber) {
 	}
 	m.mu.Unlock()
 	close(sub.ch)
+}
+
+// childPgid returns the child's process group ID (its PID, since
+// pty.StartWithSize makes it a session leader), or 0 if there is no child.
+func (m *ManagedTerminal) childPgid() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Cmd == nil || m.Cmd.Process == nil {
+		return 0
+	}
+	return m.Cmd.Process.Pid
+}
+
+// recordExit captures the child's exit code (or termination signal) under
+// the terminal mutex. Run from the reaper goroutine after cmd.Wait returns.
+func (m *ManagedTerminal) recordExit(cmd *exec.Cmd) {
+	ws := cmd.ProcessState
+	if ws == nil {
+		return
+	}
+
+	status, ok := ws.Sys().(syscall.WaitStatus)
+	if !ok {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.exited = true
+	if status.Signaled() {
+		m.exitCode = -1
+		m.exitSignal = status.Signal().String()
+	} else {
+		m.exitCode = status.ExitStatus()
+	}
+}
+
+// Exited reports whether the child process has terminated.
+func (m *ManagedTerminal) Exited() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.exited
+}
+
+// ExitState returns the child's termination status: exit code (with -1
+// when killed by a signal) and the signal name if killed.
+func (m *ManagedTerminal) ExitState() (exited bool, exitCode int, signal string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.exited, m.exitCode, m.exitSignal
+}
+
+// RecentOutput returns up to n bytes of the child's most recent output,
+// from a ring buffer refreshed by the PTY read loop.
+func (m *ManagedTerminal) RecentOutput(n int) []byte {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if n <= 0 || n > len(m.history) {
+		n = len(m.history)
+	}
+	out := make([]byte, n)
+	copy(out, m.history[len(m.history)-n:])
+	return out
+}
+
+// LastOutputTime returns when the child last wrote output.
+func (m *ManagedTerminal) LastOutputTime() time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastOutputTime
 }

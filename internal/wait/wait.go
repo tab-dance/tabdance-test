@@ -112,3 +112,24 @@ func parseFormat(s string) libghostty.FormatterFormat {
 		return libghostty.FormatterFormatPlain
 	}
 }
+
+// Repr renders raw PTY bytes with control characters shown, for putting
+// recent output into failure diagnostics.
+func Repr(b []byte) string {
+	var sb strings.Builder
+	for _, c := range b {
+		switch {
+		case c == '\r':
+			sb.WriteString("\\r")
+		case c == 0x1b:
+			sb.WriteString("\\x1b")
+		case c < 0x20 && c != '\n':
+			sb.WriteRune(rune('@' + c))
+		case c >= 0x7f:
+			sb.WriteString(fmt.Sprintf("\\x%02x", c))
+		default:
+			sb.WriteByte(c)
+		}
+	}
+	return sb.String()
+}

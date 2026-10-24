@@ -20,7 +20,19 @@ func ParseSettings(tapePath string) (TapeSettings, error) {
 		return TapeSettings{}, fmt.Errorf("read tape: %w", err)
 	}
 
-	l := lexer.New(string(data))
+	// Extension verb lines (ExpectExit, WaitExit, WaitStable, Expect) are
+	// not VHS commands; strip them before feeding the parser.
+	_, segments, err := splitExtensions(string(data))
+	if err != nil {
+		return TapeSettings{}, fmt.Errorf("parse tape: %w", err)
+	}
+
+	parsed := ""
+	for _, seg := range segments {
+		parsed += seg + "\n"
+	}
+
+	l := lexer.New(parsed)
 	p := parser.New(l)
 	commands := p.Parse()
 

@@ -4,7 +4,7 @@ Reference for the `wait_for` MCP tool in tabdance-test: polling terminal content
 
 ## Overview
 
-The `wait_for` tool polls terminal content at 50ms intervals until a regex pattern matches or the timeout expires; a timeout returns a tool error (`pattern ... not found within ...`), a match returns the JSON result. This is essential for testing async applications where rendering takes time.
+The `wait_for` tool polls terminal content at 50ms intervals until a regex pattern matches or the timeout expires. A timeout is a tool error containing the pattern, the rendered screen at timeout (`--- screen at timeout ---`) and the last PTY traffic (`--- recent output ---`); a match returns the JSON result. The same rich failure output applies to tape `Wait` commands and `Expect` extension assertions. This is essential for testing async applications where rendering takes time.
 
 ## WaitFor
 

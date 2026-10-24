@@ -20,7 +20,9 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 |---------|-------|-------------|
 | `exec` | `tabdance-test exec <command> [args...]` | Create terminal running command, print ID (use `attach <id>` to stream output) |
 | `ls` | `tabdance-test ls` | List active terminals |
-| `inspect` | `tabdance-test inspect <id>` | Terminal details (size, command, recording status) |
+| `inspect` | `tabdance-test inspect <id>` | Terminal details (size, command, recording, child exit status) |
+| `output` | `tabdance-test output <id> [bytes]` | Print recent raw PTY output (diagnostics) |
+| `doctor` | `tabdance-test doctor` | Environment preflight checks (spawns nothing) |
 | `attach` | `tabdance-test attach <id>` | Stream PTY output (Ctrl+C to detach) |
 | `kill` | `tabdance-test kill <id>` | Hidden alias for `rm` (deprecated) |
 | `rm` | `tabdance-test rm <id>` | Remove/close terminal |
@@ -150,6 +152,7 @@ Both support `--format`, `--trim`, `--unwrap` flags (same as `view`).
 | `--env` | (none) | Environment variables (key=value, repeatable) |
 | `--working-directory` | (none) | Working directory |
 | `--json` | false | Directory runs: print {passed,failed,skipped} JSON summary |
+| `--strict` | false | Reject tapes containing Sleep verbs |
 
 Directory receipts: running a directory verifies each `*.tape` against its
 matching `.golden`; without `--update`, tapes that have no golden yet are

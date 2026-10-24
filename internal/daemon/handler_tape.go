@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tab-dance/tabdance-test/internal/inspect"
 	"github.com/tab-dance/tabdance-test/internal/tape"
+	"github.com/tab-dance/tabdance-test/internal/terminal"
 	"github.com/tab-dance/tabdance-test/internal/wait"
 )
 
@@ -78,5 +80,27 @@ func (d *Daemon) handleWait(req Request) Response {
 	if err != nil {
 		return ErrorResponse(err.Error())
 	}
+	if !result.Found {
+		return ErrorResponse(waitTimeoutDetail(pattern, time.Duration(timeout*float64(time.Second)), mt, format, trim, unwrap))
+	}
 	return SuccessResponse(result)
+}
+
+// waitTimeoutDetail builds a diagnostic timeout error: the rendered screen
+// plus a repr of the last PTY traffic.
+func waitTimeoutDetail(pattern string, timeout time.Duration, mt *terminal.ManagedTerminal, format string, trim, unwrap bool) string {
+	mt.Lock()
+	view, err := inspect.GetView(mt.Terminal, format, trim, unwrap)
+	mt.Unlock()
+
+	msg := fmt.Sprintf("pattern %q not found within %v", pattern, timeout)
+	if err != nil {
+		return fmt.Sprintf("%s\n(could not render screen: %v)", msg, err)
+	}
+	recent := mt.RecentOutput(2048)
+	detail := msg + "\n--- screen at timeout ---\n" + view.Content
+	if len(recent) > 0 {
+		detail += fmt.Sprintf("\n--- recent output (last %d bytes) ---\n%s", len(recent), wait.Repr(recent))
+	}
+	return detail
 }

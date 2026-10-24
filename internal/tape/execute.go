@@ -172,7 +172,7 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 
 	timeout := e.timeout
 	if cmd.Options != "" {
-		if d, err := time.ParseDuration(cmd.Options); err == nil && d > 0 {
+		if d, err := parseTypingSpeed(cmd.Options); err == nil && d > 0 {
 			timeout = d
 		}
 	}
