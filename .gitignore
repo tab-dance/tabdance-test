@@ -3,3 +3,5 @@ deps/ghostty/zig-out/
 deps/ghostty/.zig-cache/
 dist/
 /tt
+/tt-darwin-arm64
+/tt-darwin-amd64

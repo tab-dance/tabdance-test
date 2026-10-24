@@ -6,13 +6,12 @@
 set -eu
 
 target=${1:?usage: build-lib.sh <os>_<arch>[_<variant>]}
-arch=${target#*_}
-arch=${arch%%_*}
-
-case "$arch" in
-	amd64) zig_target=x86_64-linux-gnu ;;
-	arm64) zig_target=aarch64-linux-gnu ;;
-	*) echo "unsupported arch: $arch" >&2; exit 1 ;;
+case "$target" in
+	linux_amd64*)  zig_target=x86_64-linux-gnu ;;
+	linux_arm64*)  zig_target=aarch64-linux-gnu ;;
+	darwin_amd64*) zig_target=x86_64-macos ;;
+	darwin_arm64*) zig_target=aarch64-macos ;;
+	*) echo "unsupported target: $target" >&2; exit 1 ;;
 esac
 
 ZIG=${ZIG:-zig}

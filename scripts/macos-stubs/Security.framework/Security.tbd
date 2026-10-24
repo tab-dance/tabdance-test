@@ -1,0 +1,9 @@
+--- !tapi-tbd
+tbd-version: 3
+targets: [ aarch64-macos, x86_64-macos ]
+install-name: /System/Library/Frameworks/Security.framework/Versions/A/Security
+exports:
+  - targets: [ aarch64-macos, x86_64-macos ]
+    symbols: [ SecCertificateCopyData, SecCertificateCreateWithData, SecPolicyCreateSSL,
+      SecTrustCopyCertificateChain, SecTrustCreateWithCertificates, SecTrustEvaluate,
+      SecTrustEvaluateWithError, SecTrustSetVerifyDate ]

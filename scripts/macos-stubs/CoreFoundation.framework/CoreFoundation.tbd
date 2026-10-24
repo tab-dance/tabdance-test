@@ -1,0 +1,11 @@
+--- !tapi-tbd
+tbd-version: 3
+targets: [ aarch64-macos, x86_64-macos ]
+install-name: /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
+exports:
+  - targets: [ aarch64-macos, x86_64-macos ]
+    symbols: [ CFArrayAppendValue, CFArrayCreateMutable, CFArrayGetCount,
+      CFArrayGetValueAtIndex, CFDataCreate, CFDataGetBytePtr, CFDataGetLength,
+      CFDateCreate, CFDictionaryGetValueIfPresent, CFEqual, CFErrorCopyDescription,
+      CFErrorGetCode, CFNumberGetValue, CFRelease, CFStringCreateExternalRepresentation,
+      CFStringCreateWithBytes ]

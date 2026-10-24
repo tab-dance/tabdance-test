@@ -1,0 +1,7 @@
+--- !tapi-tbd
+tbd-version: 3
+targets: [ aarch64-macos, x86_64-macos ]
+install-name: /usr/lib/libresolv.9.dylib
+exports:
+  - targets: [ aarch64-macos, x86_64-macos ]
+    symbols: [ getaddrinfo, freeaddrinfo, gai_strerror ]

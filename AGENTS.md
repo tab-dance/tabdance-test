@@ -21,21 +21,24 @@ make fmt                    # Run gofmt over all Go packages
 make vet                    # Run go vet
 make clean                  # Remove binary
 make run                    # Build dynamic + run
+make build-darwin-arm64     # Cross-compile macOS binaries from Linux
+make build-darwin-amd64     # Cross-compile macOS binaries from Linux
 ```
 
 Ghostty is included as a git submodule at `deps/ghostty` (tracking Ghostty `main`). The `build-lib` target compiles `libghostty-vt` from the submodule using Zig; it is skipped when `deps/ghostty/zig-out/lib/libghostty-vt.a` already exists, so incremental `make test` runs don't recompile the library. All other build targets depend on `build-lib` automatically. Requires Zig 0.17.0 or newer on the PATH (override with the `ZIG` make variable).
 
 ## Releasing
 
-Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleaser on ubuntu-24.04 to build static Linux binaries (amd64 + arm64) and publish a draft GitHub release with tar.gz archives and checksums. Key points:
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleaser on ubuntu-24.04 to build Linux and macOS binaries (amd64 + arm64 each) and publish a draft GitHub release with tar.gz archives and checksums. Key points:
 
 - `.goreleaser.yaml` uses the Go builder with a `hooks.pre` script (`scripts/build-lib.sh <target>`) that cross-compiles `libghostty-vt` per target into `dist/lib/<target>` with `zig build -Dtarget=...`. Each target gets its own pkg-config tree so parallel builds don't clobber each other.
 - `PKG_CONFIG_PATH` must be absolute (cgo runs pkg-config from the go.mitchellh.com/libghostty module directory), hence the `GITHUB_WORKSPACE` template.
 - Cross-linking uses `zig cc -target <triple>` as `CC` per target (see `overrides`).
+- macOS targets cross-compile on the same Linux runner: `scripts/build-lib.sh` maps darwin targets to `x86_64-macos`/`aarch64-macos` zig triples, and `scripts/macos-stubs/` holds text stub (tbd) files for `-framework CoreFoundation -framework Security` and `-lresolv` (linked unconditionally by Go on darwin). The stubs carry the real Apple install names, so dyld binds the true frameworks at load time on the Mac; no Apple SDK is needed. The stub paths are passed via `-extldflags "-L ... -F ..."` in the darwin-only goreleaser `overrides` and in the `make build-darwin-*` targets.
 - Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=$(command -v zig) goreleaser release --snapshot --clean`
 - The build injects `-X internal/version.Version={{ .Version }}` so `tt --version` matches the release tag.
 - `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging.
-- Only Linux targets are currently built; macOS/Windows need per-platform runners (and, for macOS, an SDK).
+- macOS binaries are built unsigned (no codesigning/notarization step).
 
 ## Architecture & Data Flow
 
@@ -320,6 +323,7 @@ Lines at the start of a tape line may use seven verbs that tt executes inline (n
 
 - **libghostty-vt is built from git submodule**: Ghostty source is at `deps/ghostty` (tracking Ghostty `main`). Run `make build-lib` to compile, or any `make build-*` target which depends on it.
 - **Zig version**: Ghostty `main` requires Zig 0.17.0 or newer (older Ghostty pins used 0.15.2). Use the `ZIG` make variable to point at the right binary.
+- **cgo caches pkg-config flags without keying on PKG_CONFIG_PATH**: if you rebuild a `dist/lib/<target>` tree to a different location locally, stale cached link lines reference the old (deleted) library and the host linker reports "file not found" for `libghostty-vt.a`. Run `go clean -cache` after moving these trees; CI is unaffected (cold cache each run).
 - **Build command**: `make build-static` (builds libghostty-vt from submodule + compiles Go). Don't use bare `go build`.
 - **`KeyUnknown` doesn't exist**: Use `KeyUnidentified` (value 0) as the zero/unknown sentinel for `libghostty.Key`.
 - **`send_keys` accepts both PascalCase and snake_case key names**: `libghostty.ParseKey` only accepts snake_case (e.g. `tab`, `arrow_down`), but `SendKeys` normalizes W3C PascalCase names (e.g. `Tab`, `ArrowDown`) to snake_case automatically via `input.NormalizeKey()`. Prefer PascalCase in MCP requests.
