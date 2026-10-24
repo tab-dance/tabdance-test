@@ -2,3 +2,4 @@
 deps/ghostty/zig-out/
 deps/ghostty/.zig-cache/
 dist/
+/tt
