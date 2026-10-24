@@ -44,6 +44,19 @@ func TestExpectExitCode(t *testing.T) {
 	}
 }
 
+// "kill -9 $$" targets the wrapper shell itself, so ExitState reports a
+// real signal death rather than a wrapper-reported 128+N exit code (see
+// TestExitStateCapturesSignal).
+func TestExpectExitSignalDeath(t *testing.T) {
+	mt := newExecTerminal(t, "signal-kill", "kill -9 $$")
+
+	tapePath := writeTape(t, "ExpectExit 0\n")
+	err := NewTapeExecutor(mt, 5*time.Second).Execute(tapePath)
+	if err == nil || !strings.Contains(err.Error(), "child killed by signal killed, but expected exit code 0") {
+		t.Fatalf("expected signal-vs-code discrimination error, got: %v", err)
+	}
+}
+
 func TestWaitExitTimeout(t *testing.T) {
 	mt := newExecTerminal(t, "noexit", "sh -c 'sleep 300'")
 
