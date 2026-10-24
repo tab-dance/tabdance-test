@@ -373,7 +373,6 @@ Unit tests cover: terminal manager (unique IDs, delete semantics, name-list dedu
 
 - `README.md` — user-facing overview, quickstart, and capability matrix.
 - `AGENTS.md` — this file: contributor/agent reference.
-- `docs/plan.md`, `docs/plan-cli.md` — historical design scratch notes kept for context.
 - `skills/` — Crush skill references (ghostty, asciinema, vhs, tabdance-test).
 
 ## Cross-Project Skills
