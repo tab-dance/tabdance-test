@@ -114,3 +114,15 @@ func TestCheckStrict(t *testing.T) {
 		t.Fatalf("expected strict Sleep error, got: %v", err)
 	}
 }
+
+func TestResizeExtensionVerb(t *testing.T) {
+	mt := newExecTerminal(t, "resizer", "sh -c 'echo resize-marker; sleep 300'")
+
+	tapePath := writeTape(t, "Wait+Screen /resize-marker/\nResize 50 12\n")
+	if err := NewTapeExecutor(mt, 5*time.Second).Execute(tapePath); err != nil {
+		t.Fatalf("Resize extension failed: %v", err)
+	}
+	if mt.Cols != 50 || mt.Rows != 12 {
+		t.Fatalf("terminal did not resize: %dx%d", mt.Cols, mt.Rows)
+	}
+}

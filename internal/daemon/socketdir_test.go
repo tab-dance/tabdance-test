@@ -54,5 +54,3 @@ func changeDir(t *testing.T, dir string) {
 	}
 	t.Cleanup(func() { os.Chdir(orig) })
 }
-
-func sessionKey_blank(d string) string { return "" }

@@ -83,31 +83,37 @@ func (c *Cast) ToTapeCast() string {
 	)
 
 	var pendingInput []string
+	var lastInputTime = -1.0
 	flushInput := func() {
 		if len(pendingInput) == 0 {
 			return
 		}
 		out = append(out, pendingInput...)
 		pendingInput = nil
+		out = append(out, "WaitStable @250ms")
 	}
 
 	for _, ev := range c.Events {
 		switch ev.Kind {
 		case "i":
+			// Long pauses between keystrokes indicate separate interaction
+			// steps; separate them so replay waits for each result.
+			if lastInputTime >= 0 && ev.Time-lastInputTime >= 2.0 && len(pendingInput) > 0 {
+				flushInput()
+			}
+			lastInputTime = ev.Time
 			pendingInput = append(pendingInput, decodeInput(ev.Data)...)
 		case "o":
 			// output events are implied by replay; waits are synthesized
 		case "m":
 			if len(pendingInput) > 0 {
 				flushInput()
-				out = append(out, "WaitStable @250ms")
 			}
 			out = append(out, fmt.Sprintf("# marker: %s", ev.Data))
 		case "r":
 			if cols, rows, ok := parseResize(ev.Data); ok {
 				if len(pendingInput) > 0 {
 					flushInput()
-					out = append(out, "WaitStable @250ms")
 				}
 				out = append(out, fmt.Sprintf("Resize %d %d", cols, rows))
 			}
@@ -147,7 +153,7 @@ func decodeInput(data string) []string {
 		case b == 0x1b:
 			d.flushTyped()
 			consumed, line, ok := decodeEscape(data[i:])
-			if !ok {
+			if !ok || consumed <= 0 {
 				d.line(commentRest(data[i:]))
 				i = len(data)
 				break
@@ -287,7 +293,7 @@ func decodeEscape(s string) (consumed int, line string, ok bool) {
 			}
 		}
 		if name == "" {
-			return 0, "", false
+			return end + 1, "# skipped: unrecognized CSI " + strconv.Quote(s[:end+1]), true
 		}
 		return end + 1, name, true
 	case 'O': // SS3
@@ -318,30 +324,20 @@ func decodeEscape(s string) (consumed int, line string, ok bool) {
 		}
 		return 0, "", false
 	case ']': // OSC: prompts, titles, clipboard — not input semantics
-		end := oscEnd(s)
-		if end < 0 {
-			return 0, "", false
-		}
-		return end, "", true // recognized but produces no input line
+		return oscLength(s), "", true
 	case '(':
 		if len(s) >= 3 {
 			return 3, "", true // charset designation, ignore
 		}
 		return 0, "", false
 	}
-	return 0, "", false
-}
-
-func oscEnd(s string) int {
-	for i := 2; i < len(s); i++ {
-		if s[i] == 0x07 { // BEL
-			return i + 1
-		}
-		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' { // ST
-			return i + 2
-		}
+	// Bracketed-paste enable/disable and other terminal replies use CSI
+	// sequences we cannot map to input verbs; swallow them so the rest of
+	// the stream keeps decoding.
+	if n := oscLength(s); n > 0 {
+		return n, "", true
 	}
-	return -1
+	return 0, "", false
 }
 
 // decodeCSICodepoint handles CSI-u (kitty-style) input encodings: the
@@ -384,4 +380,18 @@ func commentRest(rest string) string {
 		return "# skipped: unrecognized escape sequence at end of input"
 	}
 	return "# skipped: unrecognized input: " + strconv.Quote(rest)
+}
+
+// oscLength returns the byte length of any OSC sequence, including its
+// BEL or ESC-\ terminator; -1 when unterminated.
+func oscLength(s string) int {
+	for i := 2; i < len(s); i++ {
+		if s[i] == 0x07 {
+			return i + 1
+		}
+		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' {
+			return i + 2
+		}
+	}
+	return -1
 }

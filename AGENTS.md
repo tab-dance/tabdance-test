@@ -311,7 +311,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## Tape Extension Verbs
 
-Lines at the start of a tape line may use six verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` and `WaitCommand[@dur]` (OSC 133 semantic markers; require a shell with prompt integration). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
+Lines at the start of a tape line may use seven verbs that tabdance-test executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` / `WaitCommand[@dur]` (OSC 133 semantic markers; require a shell with prompt integration), and `Resize <cols> <rows>` (used by the cast2tape converter; applies at the point the line occurs). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
 
 ## Gotchas
 

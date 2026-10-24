@@ -12,11 +12,8 @@ func (d *Daemon) handleSend(req Request) Response {
 }
 
 func (d *Daemon) handleKeys(req Request) Response {
-	var keyInputs []input.KeyInput
-	if raw, ok := req.Params["keys"]; ok {
-		keyInputs = decodeKeyInputs(raw)
-	}
-	if err := d.svc.SendKeys(req.GetString("id"), keyInputs); err != nil {
+	keys := req.GetStringSlice("keys")
+	if err := d.svc.SendKeyCombos(req.GetString("id"), keys, req.GetString("mods")); err != nil {
 		return ErrorResponse(err.Error())
 	}
 	return SuccessResponse("keys sent")

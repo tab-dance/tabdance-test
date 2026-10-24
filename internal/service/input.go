@@ -19,12 +19,8 @@ func (s *Service) SendText(id, text string) error {
 	return nil
 }
 
+// SendKeys injects structured key inputs (the MCP shape).
 func (s *Service) SendKeys(id string, keys []input.KeyInput) error {
-	mt, err := s.terminals.Get(id)
-	if err != nil {
-		return err
-	}
-
 	parsed := make([]input.KeyInput, len(keys))
 	copy(parsed, keys)
 	for i, ki := range parsed {
@@ -32,13 +28,35 @@ func (s *Service) SendKeys(id string, keys []input.KeyInput) error {
 			parsed[i] = input.ParseKeyCombo(ki.Key)
 		}
 	}
+	return s.sendKeys(id, parsed)
+}
+
+// SendKeyCombos injects combo strings like "Ctrl+X", optionally with mods
+// applied to all of them (the CLI shape).
+func (s *Service) SendKeyCombos(id string, combos []string, globalMods string) error {
+	var parsed []input.KeyInput
+	for _, k := range combos {
+		ki := input.ParseKeyCombo(k)
+		if ki.Mods == "" && globalMods != "" {
+			ki.Mods = globalMods
+		}
+		parsed = append(parsed, ki)
+	}
+	return s.sendKeys(id, parsed)
+}
+
+func (s *Service) sendKeys(id string, keyInputs []input.KeyInput) error {
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return err
+	}
 
 	mt.Lock()
 	defer mt.Unlock()
-	if len(parsed) == 0 {
+	if len(keyInputs) == 0 {
 		return fmt.Errorf("no valid keys provided")
 	}
-	return input.SendKeys(mt.KeyEncoder, mt, mt.Terminal, parsed)
+	return input.SendKeys(mt.KeyEncoder, mt, mt.Terminal, keyInputs)
 }
 
 func (s *Service) SendMouse(id string, mi input.MouseInput) error {

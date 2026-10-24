@@ -24,6 +24,7 @@ const (
 	extExpect
 	extWaitPrompt
 	extWaitCommand
+	extResize
 )
 
 // extension is one of the tabdance-test extension verbs that live outside
@@ -31,6 +32,8 @@ const (
 type extension struct {
 	kind    extKind
 	code    int
+	cols    int
+	rows    int
 	pattern string
 	scope   string
 	timeout time.Duration
@@ -46,6 +49,7 @@ var extVerbs = map[string]extKind{
 	"Expect":      extExpect,
 	"WaitPrompt":  extWaitPrompt,
 	"WaitCommand": extWaitCommand,
+	"Resize":      extResize,
 }
 
 // splitExtensions separates extension lines from VHS tape segments while
@@ -90,14 +94,12 @@ func parseExtension(kind extKind, rest string, line int) (extension, error) {
 
 	switch kind {
 	case extExpect:
-		if rest != "" {
-			re, scope, ok := splitRegex(rest)
-			if !ok {
-				return ext, fmt.Errorf("Expect needs a /regex/, e.g. Expect /ready/")
-			}
-			ext.pattern = re
-			ext.scope = scope
+		re, scope, ok := splitRegex(rest)
+		if !ok {
+			return ext, fmt.Errorf("Expect needs a /regex/, e.g. Expect /ready/")
 		}
+		ext.pattern = re
+		ext.scope = scope
 	case extExpectExit:
 		fields := strings.Fields(rest)
 		if len(fields) != 1 {
@@ -108,6 +110,17 @@ func parseExtension(kind extKind, rest string, line int) (extension, error) {
 			return ext, fmt.Errorf("ExpectExit code %q is not a number", fields[0])
 		}
 		ext.code = code
+	case extResize:
+		fields := strings.Fields(rest)
+		if len(fields) != 2 {
+			return ext, fmt.Errorf("Resize takes two dimensions, e.g. Resize 80 24")
+		}
+		cols, err1 := strconv.Atoi(fields[0])
+		rows, err2 := strconv.Atoi(fields[1])
+		if err1 != nil || err2 != nil || cols <= 0 || rows <= 0 {
+			return ext, fmt.Errorf("Resize expects positive column and row counts")
+		}
+		ext.cols, ext.rows = cols, rows
 	}
 	return ext, nil
 }
@@ -152,18 +165,6 @@ func splitRegex(arg string) (pattern, scope string, ok bool) {
 	}
 }
 
-// hasExtensionVerbs reports whether the tape source uses any extension verb.
-func hasExtensionVerbs(src string) bool {
-	for _, line := range strings.Split(src, "\n") {
-		if verb, _ := firstWord(line); verb != "" {
-			if _, ok := extVerbs[verb]; ok && !strings.HasPrefix(strings.TrimSpace(line), "#") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // CheckStrict returns an error for any Sleep verb in a tape, for `run
 // --strict` mode where sleeps are considered a determinism smell.
 func CheckStrict(tapePath string) error {
@@ -205,13 +206,19 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 	case extExpectExit:
 		return e.waitExit(timeout, ext.code)
 	case extWaitStable:
-		return e.waitStable(timeout)
+		quiet := ext.timeout
+		if quiet <= 0 {
+			quiet = 250 * time.Millisecond
+		}
+		return e.waitStable(quiet)
 	case extExpect:
 		return e.expect(ext.pattern, ext.scope)
 	case extWaitPrompt:
 		return e.waitPrompt(timeout)
 	case extWaitCommand:
 		return e.waitCommand(timeout)
+	case extResize:
+		return e.resize(ext.cols, ext.rows)
 	}
 	return fmt.Errorf("unknown extension kind %d", ext.kind)
 }
@@ -239,6 +246,14 @@ func (e *TapeExecutor) waitExit(timeout time.Duration, wantCode int) error {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+// resize resizes the terminal at the point the verb occurs.
+func (e *TapeExecutor) resize(cols, rows int) error {
+	if err := e.terminal.Resize(uint16(cols), uint16(rows)); err != nil {
+		return fmt.Errorf("resize: %w", err)
+	}
+	return nil
 }
 
 func exitWording(wantCode int) string {

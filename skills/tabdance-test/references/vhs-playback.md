@@ -53,7 +53,7 @@ func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor
 | `Sleep T` | `time.Sleep(parseDuration(T))` |
 | `Wait /pattern/` | Poll `Formatter.FormatString()` until regex matches |
 
-Extension verbs (executed inline, not VHS): `ExpectExit <code> @5s`, `WaitExit @5s`, `WaitStable @250ms`, `Expect /re/ [+Screen|+Line]`, `WaitPrompt @5s` (OSC 133 prompt marker), `WaitCommand @5s` (OSC 133 command-finished marker).
+Extension verbs (executed inline, not VHS): `ExpectExit <code> @5s`, `WaitExit @5s`, `WaitStable @250ms`, `Expect /re/ [+Screen|+Line]`, `WaitPrompt @5s` (OSC 133 prompt marker), `WaitCommand @5s` (OSC 133 command-finished marker), and `Resize 80 24` (applies at that point in the tape).
 | `Wait+Screen /pattern/` | Match against full screen content |
 | `Wait+Line /pattern/` | Match against cursor's current line |
 | `Set Width/Height` | `term.Resize()` + PTY resize |
