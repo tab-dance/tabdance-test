@@ -24,6 +24,9 @@ func writeSmokeTapes(t *testing.T, names ...string) string {
 	for _, name := range names {
 		path := filepath.Join(dir, name+".tape")
 		content := "Set Shell \"sh\"\n" +
+			// Wait for the shell prompt so typing never races the line
+			// editor's redraw (which can settle as e.g. "e$ cho ...").
+			"Wait+Screen /\\$/\n" +
 			"Type \"echo smoke-" + name + "\"\n" +
 			"Enter\n" +
 			// The Wait must anchor on output, not the typed echo (which
