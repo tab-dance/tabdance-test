@@ -52,8 +52,8 @@ func WaitFor(mu sync.Locker, terminal *libghostty.Terminal, opts WaitForOptions)
 			return nil, err
 		}
 
-		switch opts.Scope {
-		case "line", "+Line":
+		switch normalizeScope(opts.Scope) {
+		case "line":
 			mu.Lock()
 			cursorY, _ := terminal.CursorY()
 			mu.Unlock()
@@ -73,6 +73,15 @@ func WaitFor(mu sync.Locker, terminal *libghostty.Terminal, opts WaitForOptions)
 	}
 
 	return &WaitForResult{Found: false, ElapsedMs: opts.Timeout.Milliseconds()}, nil
+}
+
+func normalizeScope(scope string) string {
+	switch strings.ToLower(strings.TrimSpace(strings.TrimPrefix(scope, "+"))) {
+	case "line":
+		return "line"
+	default:
+		return "screen"
+	}
 }
 
 func getTerminalContent(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {

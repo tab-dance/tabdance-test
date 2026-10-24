@@ -29,10 +29,9 @@ func (c *Client) Attach(id string) error {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT)
+	defer signal.Stop(sigCh)
 	go func() {
 		<-sigCh
-		detachReq := daemon.Request{Method: "detach", Params: map[string]any{"id": id}}
-		enc.Encode(&detachReq)
 		conn.Close()
 		os.Exit(0)
 	}()

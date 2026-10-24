@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tab-dance/tabdance-test/internal/input"
 	libghostty "go.mitchellh.com/libghostty"
 )
 
@@ -59,10 +60,10 @@ Set TypingSpeed 100ms
 Set WaitTimeout 30s`,
 			settings: TapeSettings{
 				Shell:       "fish",
-				Width:        80,
-				Height:       24,
-				TypingSpeed:  100 * time.Millisecond,
-				WaitTimeout:  30 * time.Second,
+				Width:       80,
+				Height:      24,
+				TypingSpeed: 100 * time.Millisecond,
+				WaitTimeout: 30 * time.Second,
 			},
 		},
 		{
@@ -147,9 +148,9 @@ func TestNormalizeKeyName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := normalizeKeyName(tt.input)
+			got := input.NormalizeKey(tt.input)
 			if got != tt.want {
-				t.Errorf("normalizeKeyName(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("input.NormalizeKey(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

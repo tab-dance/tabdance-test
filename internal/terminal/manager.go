@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 )
 
 var (
@@ -26,7 +27,7 @@ var (
 		"xenodochial", "youthful", "zealous",
 	}
 	nouns = []string{
-		"albattani", "albattani", "allen", "almeida", "antonelli", "archimedes",
+		"albattani", "allen", "almeida", "antonelli", "archimedes",
 		"ardinghelli", "aryabhata", "austin", "babbage", "banach", "banesa",
 		"bardeen", "bartik", "bassi", "beaver", "bell", "benz", "bhabha",
 		"bhaskara", "blackburn", "blackwell", "bohr", "booth", "borg", "bose",
@@ -44,7 +45,7 @@ var (
 		"jackson", "jang", "jepsen", "johnson", "joliot", "jones", "kalam",
 		"kare", "keldysh", "keller", "kepler", "khayyam", "kilby", "kirch",
 		"knuth", "kowalevski", "lalande", "lamarr", "lamport", "leakey",
-		"leavitt", "lewin", "lewin", "lichterman", "liskov", "lovelace",
+		"leavitt", "lewin", "lichterman", "liskov", "lovelace",
 		"lumiere", "mahavira", "montalcini", "moser", "napier", "nash", "neumann",
 		"newton", "nightingale", "nobel", "noether", "northcutt", "noyce",
 		"panini", "pare", "pascal", "pasteur", "payne", "perlman", "pike",
@@ -55,7 +56,7 @@ var (
 		"sutherland", "swartz", "swirles", "taussig", "terry", "tesla", "tharp",
 		"thompson", "torvalds", "turing", "varahamihira", "vaughan", "villani",
 		"visvesvaraya", "volhard", "wescoff", "wilbur", "wiles", "williams",
-		"williamson", "wilson", "wing", "wozniak", "wright", "wozniak", "yalow",
+		"williamson", "wilson", "wing", "wozniak", "wright", "yalow",
 		"yong", "zhuse",
 	}
 )
@@ -72,18 +73,34 @@ func NewTerminalManager() *TerminalManager {
 }
 
 func (m *TerminalManager) Create(cfg CreateConfig) (*ManagedTerminal, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	id := generateRandomName()
+	id := m.uniqueID()
 
 	mt, err := NewManagedTerminal(id, cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if existing, ok := m.terminals[id]; ok {
+		existing.Close()
+	}
 	m.terminals[id] = mt
 	return mt, nil
+}
+
+func (m *TerminalManager) uniqueID() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := 0; i < 1000; i++ {
+		id := generateRandomName()
+		if _, taken := m.terminals[id]; !taken {
+			return id
+		}
+	}
+	return fmt.Sprintf("terminal_%d", time.Now().UnixNano())
 }
 
 func (m *TerminalManager) Get(id string) (*ManagedTerminal, error) {

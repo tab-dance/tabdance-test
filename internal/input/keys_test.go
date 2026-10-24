@@ -40,9 +40,9 @@ func TestNormalizeKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := normalizeKey(tt.input)
+			got := NormalizeKey(tt.input)
 			if got != tt.want {
-				t.Errorf("normalizeKey(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("NormalizeKey(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

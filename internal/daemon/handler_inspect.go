@@ -12,14 +12,11 @@ func (d *Daemon) handleView(req Request) Response {
 	}
 
 	format := req.GetString("format")
-	trim := req.GetBool("trim")
-	if _, ok := req.Params["trim"]; !ok {
-		trim = true
+	if format == "" {
+		format = "plain"
 	}
-	unwrap := req.GetBool("unwrap")
-	if _, ok := req.Params["unwrap"]; !ok {
-		unwrap = true
-	}
+	trim := req.GetBoolDefault("trim", true)
+	unwrap := req.GetBoolDefault("unwrap", true)
 
 	mt.Lock()
 	defer mt.Unlock()

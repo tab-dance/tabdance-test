@@ -19,8 +19,7 @@ Terminal Session
     → term.VTWrite(data)     [updates terminal state]
     → recorder.WriteOutput(data)  [records to .cast file]
   → Key/Mouse injection
-    → ptmx.Write(seq)        [sends to child]
-    → recorder.WriteInput(seq)   [records to .cast file]
+    → ptmx.Write(seq)        [sends to child only; input events are NOT recorded]
   → Resize
     → term.Resize()
     → recorder.WriteResize(cols, rows)

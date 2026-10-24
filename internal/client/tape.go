@@ -3,6 +3,8 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/tab-dance/tabdance-test/internal/wait"
 )
 
 func (c *Client) Tape(id, tapePath string, timeout float64) error {
@@ -20,7 +22,7 @@ func (c *Client) Tape(id, tapePath string, timeout float64) error {
 	return nil
 }
 
-func (c *Client) Wait(id, pattern, scope string, timeout float64, format string, trim, unwrap bool) (*waitResult, error) {
+func (c *Client) Wait(id, pattern, scope string, timeout float64, format string, trim, unwrap bool) (*wait.WaitForResult, error) {
 	resp, err := c.Call("wait", map[string]any{
 		"id":      id,
 		"pattern": pattern,
@@ -38,7 +40,7 @@ func (c *Client) Wait(id, pattern, scope string, timeout float64, format string,
 	}
 
 	data, _ := json.Marshal(resp.Result)
-	var result waitResult
+	var result wait.WaitForResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}

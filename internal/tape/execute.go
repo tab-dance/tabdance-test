@@ -2,11 +2,11 @@ package tape
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/vhs/parser"
+	"github.com/tab-dance/tabdance-test/internal/wait"
 	libghostty "go.mitchellh.com/libghostty"
 )
 
@@ -20,26 +20,59 @@ func (e *TapeExecutor) executeType(cmd parser.Command) error {
 	}
 
 	for _, r := range text {
+		if err := e.typeRune(r); err != nil {
+			return err
+		}
+		time.Sleep(typingSpeed)
+	}
+	return nil
+}
+
+func (e *TapeExecutor) typeRune(r rune) error {
+	e.terminal.Lock()
+	event, err := libghostty.NewKeyEvent()
+	if err != nil {
+		e.terminal.Unlock()
+		return err
+	}
+	event.SetAction(libghostty.KeyActionPress)
+	event.SetUTF8(string(r))
+	seq, err := e.terminal.GetKeyEncoder().Encode(event)
+	event.Close()
+	e.terminal.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := e.writeSeq(seq); err != nil {
+		return err
+	}
+
+	if kkf, _ := e.terminal.GetTerminal().KittyKeyboardFlags(); kkf != libghostty.KittyKeyDisabled {
 		e.terminal.Lock()
-		event, err := libghostty.NewKeyEvent()
+		release, err := libghostty.NewKeyEvent()
 		if err != nil {
 			e.terminal.Unlock()
 			return err
 		}
-		event.SetAction(libghostty.KeyActionPress)
-		event.SetUTF8(string(r))
-		seq, err := e.terminal.GetKeyEncoder().Encode(event)
-		event.Close()
+		release.SetAction(libghostty.KeyActionRelease)
+		release.SetUTF8(string(r))
+		relSeq, err := e.terminal.GetKeyEncoder().Encode(release)
+		release.Close()
 		e.terminal.Unlock()
 		if err != nil {
 			return err
 		}
-		if seq != nil {
-			if _, err := e.terminal.WritePty(seq); err != nil {
-				return fmt.Errorf("write type seq: %w", err)
-			}
-		}
-		time.Sleep(typingSpeed)
+		return e.writeSeq(relSeq)
+	}
+	return nil
+}
+
+func (e *TapeExecutor) writeSeq(seq []byte) error {
+	if seq == nil {
+		return nil
+	}
+	if _, err := e.terminal.WritePty(seq); err != nil {
+		return fmt.Errorf("write seq: %w", err)
 	}
 	return nil
 }
@@ -139,52 +172,24 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 
 	timeout := e.timeout
 	if cmd.Options != "" {
-		if d, err := time.ParseDuration(cmd.Options); err == nil {
-			if d > 0 {
-				timeout = d
-			}
+		if d, err := time.ParseDuration(cmd.Options); err == nil && d > 0 {
+			timeout = d
 		}
 	}
 
-	re, err := regexp.Compile(pattern)
+	result, err := wait.WaitFor(e.terminal, e.terminal.GetTerminal(), wait.WaitForOptions{
+		Pattern: pattern,
+		Scope:   scope,
+		Timeout: timeout,
+		Format:  "plain",
+		Trim:    true,
+		Unwrap:  true,
+	})
 	if err != nil {
-		return fmt.Errorf("compile pattern: %w", err)
+		return err
 	}
-
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		e.terminal.Lock()
-		f, err := libghostty.NewFormatter(e.terminal.GetTerminal(),
-			libghostty.WithFormatterFormat(libghostty.FormatterFormatPlain),
-			libghostty.WithFormatterTrim(true),
-			libghostty.WithFormatterUnwrap(true),
-		)
-		if err != nil {
-			e.terminal.Unlock()
-			return err
-		}
-		content, _ := f.FormatString()
-		f.Close()
-
-		matched := false
-		switch scope {
-		case "Screen":
-			matched = re.MatchString(content)
-		case "Line":
-			cursorY, _ := e.terminal.GetTerminal().CursorY()
-			lines := strings.Split(content, "\n")
-			if int(cursorY) < len(lines) {
-				matched = re.MatchString(lines[cursorY])
-			}
-		}
-		e.terminal.Unlock()
-
-		if matched {
-			return nil
-		}
-
-		time.Sleep(50 * time.Millisecond)
+	if !result.Found {
+		return fmt.Errorf("wait timeout: pattern %q not found within %v", pattern, timeout)
 	}
-
-	return fmt.Errorf("wait timeout: pattern %q not found within %v", pattern, timeout)
+	return nil
 }

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/tab-dance/tabdance-test/pkg/actions"
 	"github.com/carapace-sh/carapace"
 	"github.com/spf13/cobra"
+	"github.com/tab-dance/tabdance-test/pkg/actions"
 )
 
 var sizeCmd = &cobra.Command{

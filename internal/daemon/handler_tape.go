@@ -59,14 +59,8 @@ func (d *Daemon) handleWait(req Request) Response {
 	if format == "" {
 		format = "plain"
 	}
-	trim := req.GetBool("trim")
-	if _, ok := req.Params["trim"]; !ok {
-		trim = true
-	}
-	unwrap := req.GetBool("unwrap")
-	if _, ok := req.Params["unwrap"]; !ok {
-		unwrap = true
-	}
+	trim := req.GetBoolDefault("trim", true)
+	unwrap := req.GetBoolDefault("unwrap", true)
 
 	mt, err := d.manager.Get(id)
 	if err != nil {

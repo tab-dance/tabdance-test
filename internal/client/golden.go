@@ -3,9 +3,11 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/tab-dance/tabdance-test/internal/golden"
 )
 
-func (c *Client) Verify(id, goldenPath, format string, trim, unwrap bool) (*verifyResult, error) {
+func (c *Client) Verify(id, goldenPath, format string, trim, unwrap bool) (*golden.VerifyResult, error) {
 	resp, err := c.Call("verify", map[string]any{
 		"id":          id,
 		"golden_path": goldenPath,
@@ -21,7 +23,7 @@ func (c *Client) Verify(id, goldenPath, format string, trim, unwrap bool) (*veri
 	}
 
 	data, _ := json.Marshal(resp.Result)
-	var result verifyResult
+	var result golden.VerifyResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}

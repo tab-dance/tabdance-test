@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/tab-dance/tabdance-test/internal/terminal"
@@ -20,16 +22,18 @@ const (
 )
 
 type Daemon struct {
-	manager     *terminal.TerminalManager
-	socketPath  string
-	pidPath     string
-	idleTimeout time.Duration
+	manager      *terminal.TerminalManager
+	socketPath   string
+	pidPath      string
+	idleTimeout  time.Duration
+	instanceLock *os.File
 
-	mu          sync.Mutex
-	listener    net.Listener
-	done        chan struct{}
-	clients     int
-	lastActive  time.Time
+	mu         sync.Mutex
+	listener   net.Listener
+	done       chan struct{}
+	shutdown   sync.Once
+	clients    int
+	lastActive time.Time
 }
 
 func socketDir() string {
@@ -52,7 +56,7 @@ func New() *Daemon {
 	dir := socketDir()
 	return &Daemon{
 		manager:     terminal.NewTerminalManager(),
-		socketPath:   filepath.Join(dir, defaultSocketName),
+		socketPath:  filepath.Join(dir, defaultSocketName),
 		pidPath:     filepath.Join(dir, defaultPIDFileName),
 		idleTimeout: idleTimeout(),
 		done:        make(chan struct{}),
@@ -69,15 +73,28 @@ func idleTimeout() time.Duration {
 }
 
 func (d *Daemon) Run() error {
-	if err := os.MkdirAll(filepath.Dir(d.socketPath), 0755); err != nil {
+	dir := filepath.Dir(d.socketPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("create socket dir: %w", err)
 	}
+
+	lock, err := acquireInstanceLock(d.pidPath + ".lock")
+	if err != nil {
+		return fmt.Errorf("acquire daemon lock: %w", err)
+	}
+	d.instanceLock = lock
+	defer lock.Close()
 
 	os.Remove(d.socketPath)
 
 	l, err := net.Listen("unix", d.socketPath)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
+	}
+	if err := os.Chmod(d.socketPath, 0600); err != nil {
+		l.Close()
+		os.Remove(d.socketPath)
+		return fmt.Errorf("chmod socket: %w", err)
 	}
 	d.listener = l
 
@@ -95,22 +112,39 @@ func (d *Daemon) Run() error {
 
 	go d.idleWatch()
 
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			select {
-			case <-d.done:
-				return nil
-			default:
-				return fmt.Errorf("accept: %w", err)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	acceptErrs := make(chan error, 1)
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				acceptErrs <- err
+				return
 			}
+
+			d.mu.Lock()
+			d.clients++
+			d.mu.Unlock()
+
+			go d.handleConn(conn)
 		}
+	}()
 
-		d.mu.Lock()
-		d.clients++
-		d.mu.Unlock()
-
-		go d.handleConn(conn)
+	select {
+	case err := <-acceptErrs:
+		select {
+		case <-d.done:
+			return nil
+		default:
+			return fmt.Errorf("accept: %w", err)
+		}
+	case <-sigCh:
+		d.shutdown.Do(func() { close(d.done) })
+		l.Close()
+		return nil
 	}
 }
 
@@ -133,7 +167,7 @@ func (d *Daemon) idleWatch() {
 					d.lastActive = time.Now()
 				} else if time.Since(d.lastActive) > d.idleTimeout {
 					d.listener.Close()
-					close(d.done)
+					d.shutdown.Do(func() { close(d.done) })
 					return
 				}
 			} else {

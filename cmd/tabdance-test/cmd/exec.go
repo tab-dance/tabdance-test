@@ -26,12 +26,8 @@ var execCmd = &cobra.Command{
 			return err
 		}
 
-		if execDetach {
-			fmt.Println(id)
-			return nil
-		}
-
-		return c.Attach(id)
+		fmt.Println(id)
+		return nil
 	},
 }
 
@@ -42,7 +38,6 @@ var (
 	execEnv        []string
 	execWorkingDir string
 	execRecordPath string
-	execDetach     bool
 )
 
 func init() {
@@ -52,7 +47,6 @@ func init() {
 	execCmd.Flags().StringArrayVar(&execEnv, "env", nil, "environment variables (key=value, repeatable)")
 	execCmd.Flags().StringVar(&execWorkingDir, "working-directory", "", "working directory for the child process")
 	execCmd.Flags().StringVar(&execRecordPath, "record", "", "start asciinema recording to path")
-	execCmd.Flags().BoolVarP(&execDetach, "detach", "d", true, "detach from terminal after creation")
 
 	rootCmd.AddCommand(execCmd)
 

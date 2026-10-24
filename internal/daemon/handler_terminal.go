@@ -80,11 +80,11 @@ func (d *Daemon) handleInspect(req Request) Response {
 	defer mt.Unlock()
 
 	return SuccessResponse(map[string]any{
-		"id":         mt.ID,
-		"cols":       mt.Cols,
-		"rows":       mt.Rows,
-		"command":    mt.Command,
-		"recording":  mt.Recorder != nil,
+		"id":        mt.ID,
+		"cols":      mt.Cols,
+		"rows":      mt.Rows,
+		"command":   mt.Command,
+		"recording": mt.Recorder != nil,
 	})
 }
 

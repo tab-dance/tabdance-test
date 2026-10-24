@@ -9,7 +9,7 @@ import (
 )
 
 func TestCreateAndCloseTerminal(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	result, err := s.handleCreateTerminal(context.Background(), makeRequest(map[string]any{
 		"cols": 40,
@@ -38,7 +38,7 @@ func TestCreateAndCloseTerminal(t *testing.T) {
 }
 
 func TestListTerminals(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	_, _ = s.handleCreateTerminal(context.Background(), makeRequest(map[string]any{
 		"cols": 80, "rows": 24,
@@ -66,7 +66,7 @@ func TestListTerminals(t *testing.T) {
 }
 
 func TestGetView(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	result, _ := s.handleCreateTerminal(context.Background(), makeRequest(map[string]any{
 		"cols": 80, "rows": 24,
@@ -89,7 +89,7 @@ func TestGetView(t *testing.T) {
 }
 
 func TestGetCursor(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	result, _ := s.handleCreateTerminal(context.Background(), makeRequest(map[string]any{
 		"cols": 80, "rows": 24,
@@ -111,7 +111,7 @@ func TestGetCursor(t *testing.T) {
 }
 
 func TestGetSize(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	result, _ := s.handleCreateTerminal(context.Background(), makeRequest(map[string]any{
 		"cols": 120, "rows": 30,
@@ -141,7 +141,7 @@ func TestGetSize(t *testing.T) {
 }
 
 func TestResize(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	result, _ := s.handleCreateTerminal(context.Background(), makeRequest(map[string]any{
 		"cols": 80, "rows": 24,
@@ -174,7 +174,7 @@ func TestResize(t *testing.T) {
 }
 
 func TestInvalidTerminalID(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	result, err := s.handleGetView(context.Background(), makeRequest(map[string]any{
 		"terminal_id": "nonexistent",
@@ -193,7 +193,7 @@ func TestInvalidTerminalID(t *testing.T) {
 }
 
 func TestVerifyOutputNoGolden(t *testing.T) {
-	s := New()
+	s := New("test")
 
 	result, _ := s.handleCreateTerminal(context.Background(), makeRequest(map[string]any{
 		"cols": 80, "rows": 24,

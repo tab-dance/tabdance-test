@@ -43,3 +43,51 @@ jobs:
           distribution: goreleaser
           version: latest
           args: build --snapshot --clean --single-target
+
+  lint:
+    name: gofmt
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (with ghostty submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l cmd pkg internal)
+          if [ -n "$unformatted" ]; then
+            echo "Files not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+  test:
+    name: go test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (with ghostty submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      - name: Run tests
+        run: make test
+
+      - name: Vet
+        run: make vet

@@ -16,17 +16,17 @@ type KeyInput struct {
 }
 
 var modifierNames = map[string]bool{
-	"ctrl":     true,
-	"alt":      true,
-	"shift":    true,
-	"super":    true,
-	"control":  true,
-	"cmd":      true,
-	"command":  true,
-	"opt":      true,
-	"option":   true,
+	"ctrl":      true,
+	"alt":       true,
+	"shift":     true,
+	"super":     true,
+	"control":   true,
+	"cmd":       true,
+	"command":   true,
+	"opt":       true,
+	"option":    true,
 	"caps_lock": true,
-	"num_lock": true,
+	"num_lock":  true,
 }
 
 // ParseKeyCombo splits a key combo string like "Ctrl+F" or "Ctrl+Alt+Enter"
@@ -133,12 +133,12 @@ var w3cAliases = map[string]string{
 	"Numpad9":     "numpad_9",
 }
 
-// normalizeKey converts W3C PascalCase key names (e.g. "Tab", "ArrowDown",
+// NormalizeKey converts W3C PascalCase key names (e.g. "Tab", "ArrowDown",
 // "KeyA") to the snake_case format expected by libghostty.ParseKey
 // (e.g. "tab", "arrow_down", "key_a"). If the name is already snake_case
 // it is returned unchanged. Single ASCII letters are prefixed with "key_"
 // (e.g. "F" → "key_f", "a" → "key_a").
-func normalizeKey(name string) string {
+func NormalizeKey(name string) string {
 	if strings.Contains(name, "_") {
 		return name
 	}
@@ -173,7 +173,7 @@ func SendKeys(enc *libghostty.KeyEncoder, ptmxWriter io.Writer, term *libghostty
 			continue
 		}
 
-		key, err := libghostty.ParseKey(normalizeKey(k.Key))
+		key, err := libghostty.ParseKey(NormalizeKey(k.Key))
 		if err != nil {
 			return fmt.Errorf("parse key %q: %w", k.Key, err)
 		}

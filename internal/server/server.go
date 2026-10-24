@@ -8,16 +8,18 @@ import (
 type Server struct {
 	mcp       *server.MCPServer
 	terminals *terminal.TerminalManager
+	version   string
 }
 
-func New() *Server {
+func New(version string) *Server {
 	s := &Server{
+		version:   version,
 		terminals: terminal.NewTerminalManager(),
 	}
 
 	s.mcp = server.NewMCPServer(
 		"tabdance-test",
-		"0.1.0",
+		version,
 		server.WithToolCapabilities(false),
 	)
 

@@ -17,7 +17,7 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `exec` | `tabdance-test exec <command> [args...]` | Create terminal running command, print ID |
+| `exec` | `tabdance-test exec <command> [args...]` | Create terminal running command, print ID (use `attach <id>` to stream output) |
 | `ls` | `tabdance-test ls` | List active terminals |
 | `inspect` | `tabdance-test inspect <id>` | Terminal details (size, command, recording status) |
 | `attach` | `tabdance-test attach <id>` | Stream PTY output (Ctrl+C to detach) |
@@ -34,7 +34,6 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 | `--env` | (none) | Environment variables (key=value, repeatable) |
 | `--working-directory` | (none) | Working directory for child process |
 | `--record` | (none) | Start asciinema recording to path |
-| `-d` / `--detach` | true | Detach after creation (false = attach to PTY output) |
 
 ### Inspection
 

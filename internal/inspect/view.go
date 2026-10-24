@@ -82,12 +82,7 @@ func buildViewResult(term *libghostty.Terminal, content string) (*ViewResult, er
 		screenStr = "alternate"
 	}
 
-	styleStr := "bar"
-	if cs, err := term.CursorStyle(); err == nil && cs != nil {
-		if cs.Bold() {
-			styleStr = "block"
-		}
-	}
+	styleStr := cursorStyleString(term)
 
 	return &ViewResult{
 		Content:       content,

@@ -45,7 +45,6 @@ func SendMouse(enc *libghostty.MouseEncoder, ptmxWriter io.Writer, input MouseIn
 	event.SetPosition(libghostty.MousePosition{X: input.X, Y: input.Y})
 
 	seq, err := enc.Encode(event)
-	event.Close()
 	if err != nil {
 		return fmt.Errorf("encode mouse: %w", err)
 	}

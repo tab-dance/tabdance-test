@@ -61,6 +61,15 @@ func (r *Request) GetBool(key string) bool {
 	return false
 }
 
+// GetBoolDefault returns a bool param value; unlike GetBool it treats an
+// absent key as def so callers can express tri-state defaults.
+func (r *Request) GetBoolDefault(key string, def bool) bool {
+	if _, ok := r.Params[key]; !ok {
+		return def
+	}
+	return r.GetBool(key)
+}
+
 func (r *Request) GetStringSlice(key string) []string {
 	if v, ok := r.Params[key]; ok {
 		if arr, ok := v.([]any); ok {

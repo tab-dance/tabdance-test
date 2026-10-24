@@ -3,9 +3,11 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/tab-dance/tabdance-test/internal/inspect"
 )
 
-func (c *Client) View(id, format string, trim, unwrap bool) (*viewResult, error) {
+func (c *Client) View(id, format string, trim, unwrap bool) (*inspect.ViewResult, error) {
 	resp, err := c.Call("view", map[string]any{
 		"id":     id,
 		"format": format,
@@ -20,14 +22,14 @@ func (c *Client) View(id, format string, trim, unwrap bool) (*viewResult, error)
 	}
 
 	data, _ := json.Marshal(resp.Result)
-	var result viewResult
+	var result inspect.ViewResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (c *Client) Cursor(id string) (*cursorResult, error) {
+func (c *Client) Cursor(id string) (*inspect.CursorResult, error) {
 	resp, err := c.Call("cursor", map[string]any{"id": id})
 	if err != nil {
 		return nil, err
@@ -37,14 +39,14 @@ func (c *Client) Cursor(id string) (*cursorResult, error) {
 	}
 
 	data, _ := json.Marshal(resp.Result)
-	var result cursorResult
+	var result inspect.CursorResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (c *Client) Size(id string) (*sizeResult, error) {
+func (c *Client) Size(id string) (*inspect.SizeResult, error) {
 	resp, err := c.Call("size", map[string]any{"id": id})
 	if err != nil {
 		return nil, err
@@ -54,14 +56,14 @@ func (c *Client) Size(id string) (*sizeResult, error) {
 	}
 
 	data, _ := json.Marshal(resp.Result)
-	var result sizeResult
+	var result inspect.SizeResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (c *Client) Cell(id string, x, y int) (*cellResult, error) {
+func (c *Client) Cell(id string, x, y int) (*inspect.CellResult, error) {
 	resp, err := c.Call("cell", map[string]any{
 		"id": id,
 		"x":  x,
@@ -75,7 +77,7 @@ func (c *Client) Cell(id string, x, y int) (*cellResult, error) {
 	}
 
 	data, _ := json.Marshal(resp.Result)
-	var result cellResult
+	var result inspect.CellResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}

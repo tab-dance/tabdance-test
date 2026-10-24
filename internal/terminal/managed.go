@@ -5,10 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	libghostty "go.mitchellh.com/libghostty"
+
 	"github.com/creack/pty"
 	"github.com/tab-dance/tabdance-test/internal/recording"
 )
@@ -26,6 +28,7 @@ type ManagedTerminal struct {
 	Rows         uint16
 
 	mu          sync.Mutex
+	ptmxPtr     *atomic.Pointer[os.File]
 	done        chan struct{}
 	close       sync.Once
 	subscribers []*outputSubscriber
@@ -47,14 +50,14 @@ func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
 	// shell before the next output chunk is read. Buffering them through a
 	// separate write loop makes the response arrival time race with the
 	// shell's rendering state machine, producing non-deterministic output.
-	var ptmx *os.File
-
+	var ptmx atomic.Pointer[os.File]
 	term, err := libghostty.NewTerminal(
 		libghostty.WithSize(cfg.Cols, cfg.Rows),
 		libghostty.WithMaxScrollbackLines(cfg.Scrollback),
 		libghostty.WithWritePty(func(_ *libghostty.Terminal, data []byte) {
-			if ptmx != nil {
-				ptmx.Write(data)
+			f := ptmx.Load()
+			if f != nil {
+				f.Write(data)
 			}
 		}),
 	)
@@ -78,15 +81,17 @@ func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
 	mouseEnc.SetOptFromTerminal(term)
 
 	m := &ManagedTerminal{
-		ID:         id,
-		Terminal:   term,
-		KeyEncoder: keyEnc,
+		ID:           id,
+		Terminal:     term,
+		KeyEncoder:   keyEnc,
 		MouseEncoder: mouseEnc,
-		Command:    cfg.Command,
-		Cols:       cfg.Cols,
-		Rows:       cfg.Rows,
-		done:       make(chan struct{}),
+		Command:      cfg.Command,
+		Cols:         cfg.Cols,
+		Rows:         cfg.Rows,
+		done:         make(chan struct{}),
 	}
+
+	m.ptmxPtr = &ptmx
 
 	if cfg.Command != "" {
 		if err := m.startPTY(cfg); err != nil {
@@ -118,9 +123,14 @@ func (m *ManagedTerminal) startPTY(cfg CreateConfig) error {
 
 	m.Cmd = cmd
 	m.Ptmx = ptmx
-	ptmx = m.Ptmx
+	m.ptmxPtr.Store(ptmx)
 
 	go m.ptyReadLoop()
+	// Reap the child process once it exits (or is killed on Close) so it
+	// does not linger as a zombie in the daemon.
+	go func() {
+		_ = cmd.Wait()
+	}()
 
 	return nil
 }
@@ -177,6 +187,7 @@ func (m *ManagedTerminal) Close() {
 		}
 
 		if m.Ptmx != nil {
+			m.ptmxPtr.Store(nil)
 			m.Ptmx.Close()
 		}
 
@@ -260,7 +271,7 @@ func (m *ManagedTerminal) Write(data []byte) (int, error) {
 func (m *ManagedTerminal) Lock()   { m.mu.Lock() }
 func (m *ManagedTerminal) Unlock() { m.mu.Unlock() }
 
-func (m *ManagedTerminal) GetTerminal() *libghostty.Terminal    { return m.Terminal }
+func (m *ManagedTerminal) GetTerminal() *libghostty.Terminal     { return m.Terminal }
 func (m *ManagedTerminal) GetKeyEncoder() *libghostty.KeyEncoder { return m.KeyEncoder }
 func (m *ManagedTerminal) GetMouseEncoder() *libghostty.MouseEncoder {
 	return m.MouseEncoder

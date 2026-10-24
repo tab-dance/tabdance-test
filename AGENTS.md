@@ -13,14 +13,17 @@ Both interfaces provide the same capabilities: create terminals, send keys/mouse
 
 ```sh
 make build-static           # Build libghostty-vt + static link (default)
-make build-dynamic         # Build libghostty-vt + dynamic link
-make build-lib             # Build libghostty-vt from submodule only
-make test                  # Build + run tests
-make clean                 # Remove binary
-make run                   # Build dynamic + run
+make build-dynamic          # Build libghostty-vt + dynamic link
+make build-lib              # Build libghostty-vt from submodule only
+make test                   # Build + run tests
+make test-race              # Build + run tests with race detector
+make fmt                    # Run gofmt over all Go packages
+make vet                    # Run go vet
+make clean                  # Remove binary
+make run                    # Build dynamic + run
 ```
 
-Ghostty is included as a git submodule at `deps/ghostty` (tracking Ghostty `main`). The `build-lib` target compiles `libghostty-vt` from the submodule using Zig. All other build targets depend on `build-lib` automatically. Requires Zig 0.17.0 or newer on the PATH (override with the `ZIG` make variable).
+Ghostty is included as a git submodule at `deps/ghostty` (tracking Ghostty `main`). The `build-lib` target compiles `libghostty-vt` from the submodule using Zig; it is skipped when `deps/ghostty/zig-out/lib/libghostty-vt.a` already exists, so incremental `make test` runs don't recompile the library. All other build targets depend on `build-lib` automatically. Requires Zig 0.17.0 or newer on the PATH (override with the `ZIG` make variable).
 
 ## Releasing
 
@@ -30,6 +33,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleas
 - `PKG_CONFIG_PATH` must be absolute (cgo runs pkg-config from the go.mitchellh.com/libghostty module directory), hence the `GITHUB_WORKSPACE` template.
 - Cross-linking uses `zig cc -target <triple>` as `CC` per target (see `overrides`).
 - Local dry run: `GITHUB_WORKSPACE=$PWD ZIG=$(command -v zig) goreleaser release --snapshot --clean`
+- The build injects `-X internal/version.Version={{ .Version }}` so `tabdance-test --version` matches the release tag.
 - `.github/workflows/build.yml` runs the same goreleaser snapshot build (plus `goreleaser check`) on pull requests and pushes to master, so release builds are verified before tagging.
 - Only Linux targets are currently built; macOS/Windows need per-platform runners (and, for macOS, an SDK).
 
@@ -68,19 +72,20 @@ AI Agent
 
 ### Key flow: daemon auto-start
 
-1. CLI command invoked (e.g. `tabdance-test view term_1`)
+1. CLI command invoked (e.g. `tabdance-test view eager_borg`)
 2. Client checks if daemon is running (PID file + socket connect)
 3. If not: fork daemon process (`tabdance-test --daemon`), wait for socket
 4. Connect, send JSON-RPC request, receive response, disconnect
 5. Daemon idles out after 30s with no active terminals or clients
+6. If two clients race to auto-start, `daemon.lock` (flock) makes the loser exit instead of stealing the winner's socket file
 
 ### Key flow: create terminal with command
 
 1. `libghostty.NewTerminal()` with `WithSize`, `WithMaxScrollback`, `WithWritePty`
 2. Create `KeyEncoder` + `MouseEncoder`, sync with `SetOptFromTerminal`
-3. If command provided: spawn PTY child process, start bridge goroutines
+3. If command provided: spawn PTY child process, start bridge goroutines; a dedicated goroutine calls `cmd.Wait()` to reap the child so it cannot haunt the daemon as a zombie
 4. Bridge: child stdout → `term.VTWrite()` + optional `recorder.WriteOutput()` + broadcast to subscribers
-5. Bridge: `WritePty` callback → ptyOut buffer → `ptmx.Write()` → child stdin
+5. Bridge: `WritePty` callback → atomic PTY pointer load → `ptmx.Write()` → child stdin (responses to shell queries reach the child synchronously during VTWrite)
 
 ### Key flow: send keys
 
@@ -96,7 +101,8 @@ tabdance-test
 ├── mcp                          # Start MCP server (stdio)
 ├── exec <command>               # Create terminal, print ID
 │   --cols / --rows / --scrollback / --env / --working-directory
-│   --record <path> / --detach / -d (default: true)
+│   --record <path>
+│   (attach separately via `attach <id>`)
 ├── ls                           # List active terminals (--json)
 ├── inspect <id>                 # Terminal details (--json)
 ├── attach <id>                  # Stream PTY output (Ctrl+C to detach)
@@ -127,7 +133,7 @@ tabdance-test
 
 ```
 cmd/tabdance-test/
-  main.go                    # Entrypoint: --daemon flag
+  main.go                    # Entrypoint: --daemon flag, --version (via internal/version)
   cmd/
     root.go                  # Root command var + carapace integration
     mcp.go                   # `mcp` subcommand (init-style self-registration)
@@ -163,8 +169,9 @@ pkg/
 
 internal/
   daemon/
-    protocol.go              # JSON-RPC protocol types (Request, Response)
-    daemon.go                # Daemon: socket listener, accept loop, idle timeout, auto-start
+    protocol.go              # JSON-RPC protocol types (Request, Response, GetBoolDefault helpers)
+    daemon.go                # Daemon: socket listener, accept loop, idle timeout, graceful signal shutdown
+    lock.go                  # Instance flock guard (daemon.pid.lock) preventing daemon start races
     handler_terminal.go      # Daemon handlers: exec, ls, inspect, kill, rm
     handler_input.go         # Daemon handlers: send, keys, mouse, paste, focus
     handler_inspect.go       # Daemon handlers: view, cursor, size, cell
@@ -176,14 +183,13 @@ internal/
     daemon.go                # Auto-start logic: EnsureDaemon, IsDaemonRunning
     attach.go                # Streaming attach client
     terminal.go              # Terminal methods: Exec, Ls, Inspect, Kill, Rm
-    inspect.go               # Inspect methods: View, Cursor, Size, Cell
+    inspect.go               # Inspect methods: View, Cursor, Size, Cell (reuse inspect.*Result DTOs)
     input.go                 # Input methods: Send, Keys, Mouse, Paste, Focus, Resize
-    tape.go                  # Tape/wait methods: Tape, Wait
-    golden.go                # Golden methods: Verify, Snapshot
+    tape.go                  # Tape/wait methods: Tape, Wait (reuses wait.WaitForResult)
+    golden.go                # Golden methods: Verify, Snapshot (reuses golden.VerifyResult)
     recording.go             # Recording methods: Record, Stop, Marker
-    types.go                 # Result types for JSON deserialization
   server/
-    server.go                # Server struct, New, Run
+    server.go                # Server struct, New(version), Run
     tools.go                 # Tool registration (registerTools)
     handler_terminal.go      # MCP handlers: create, list, close, reset, resize
     handler_input.go         # MCP handlers: send_keys, send_text, send_mouse, send_focus, send_paste
@@ -194,16 +200,18 @@ internal/
     handler_wait.go          # MCP handlers: wait_for
     server_test.go           # Integration tests
   terminal/
-    manager.go               # TerminalManager: Create/Get/List/Delete/CloseAll, auto-increment IDs
+    manager.go               # TerminalManager: Create/Get/List/Delete/CloseAll, collision-free random IDs
     managed.go               # ManagedTerminal: terminal + PTY lifecycle, encoders, recorder, mutex
     subscriber.go            # outputSubscriber: broadcast channel for PTY output
+    manager_test.go          # Uniqueness/list/delete/name-list tests
   input/
     keys.go                  # SendKeys: ParseKey/ParseMods, Kitty keyboard press+release
     mouse.go                 # SendMouse: ParseMouseButton, scroll_up/scroll_down via button 4/5
     focus.go                 # SendFocus: ParseFocusEvent + FocusEncode
     paste.go                 # SendPaste: PasteEncode with bracketed-paste mode
   inspect/
-    view.go                  # GetView: Formatter (plain/vt/html, trim, unwrap) + cursor + active screen
+    view.go                  # GetView: Formatter (plain/vt/html/svg/json, trim, unwrap) + cursor + active screen
+    style.go                 # cursorStyleString: RenderState-based visual cursor style (shared helper)
     cell.go                  # GetCell: GridRef (codepoint, graphemes, wide, bold, italic, fg/bg, hyperlink)
     cursor.go                # GetCursor: x, y, visible, pending_wrap, style
     size.go                  # GetSize: cols, rows, width_px, height_px
@@ -217,7 +225,11 @@ internal/
   golden/
     verify.go                # VerifyOutput/UpdateGolden: go-difflib unified diff
   wait/
-    wait.go                  # WaitFor: regex polling at 50ms, screen/line scope
+    wait.go                  # WaitFor: regex polling at 50ms, case-insensitive screen/line scope
+    wait_test.go             # Scope normalization tests
+
+internal/version/
+  version.go                 # Release version var (ldflags-injected), --version fallback
 
 skills/                       # Crush skill references (ghostty, asciinema, vhs)
 ```
@@ -260,6 +272,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **TapeExecutor Terminal interface**: Decoupled from `ManagedTerminal` via interface with `Lock/Unlock/WritePty/GetTerminal/GetKeyEncoder/GetMouseEncoder/Resize/AddMarker`.
 - **Golden file update mode**: Separate `update_golden` tool (not a flag on `verify_output`) to make accidental updates harder.
 - **`Set Shell` only works in `run` mode**: The `run` command pre-parses tape settings via `ParseSettings()` before creating the terminal, so `Set Shell` determines which shell binary runs. For the `tape` MCP tool and CLI `tape` command, the terminal already has a running child process, so `Set Shell` is a no-op at execution time.
+- **Key-name normalization**: Use `input.NormalizeKey()` (exported) wherever key names reach `libghostty.ParseKey`. Tape combo parsers import it too; do not create local copies.
 - **Scroll mouse actions**: `scroll_up`/`scroll_down` translated to button 4/5 press+release sequences.
 - **All go-libghostty getters return `(value, error)`**: e.g., `CursorX() (uint16, error)`, `Cols() (uint16, error)`.
 - **mcp-go CallToolRequest**: Use `req.GetString()`, `req.GetInt()`, `req.GetBool()`, `req.RequireString()`, `req.RequireInt()` — NOT `req.Params.Arguments["key"]`.
@@ -269,6 +282,9 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Init-style subcommand registration**: Each subcommand file declares a package-level `*cobra.Command` var and registers it via `rootCmd.AddCommand()` in an `init()` function. No central list of subcommands in root.go.
 - **Carapace completion actions**: Defined in `pkg/actions/` (`ActionTerminalIDs`, `ActionKeyNames`). Command files import and use them directly.
 - **`run` command is daemon-free**: Creates terminal in-process, plays tape, verifies, exits. No socket needed. Uses `ParseSettings()` to read `Set Shell`/`Set Width`/`Set Height`/`Set WaitTimeout`/`Set TypingSpeed` from the tape before creating the terminal. Defaults to `sh` if no `Set Shell` is specified.
+- **Shared result types**: The client returns `inspect.*Result`, `golden.VerifyResult`, `wait.WaitForResult`, and `terminal.TerminalInfo` directly — daemon, MCP and CLI layers all serialize the same DTOs. Do not re-declare client-local structs.
+- **Tri-state bool params**: Daemon requests use `req.GetBoolDefault(key, def)` when absence must fall back to a non-false default (e.g. `trim`/`unwrap`).
+- **Wait scope normalization**: `wait.WaitFor` accepts `screen`/`line` case-insensitively (including the `+Line`/`+line` forms); tape `Wait` commands go through the same implementation, so there is exactly one poll loop.
 
 ## Gotchas
 
@@ -276,7 +292,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Zig version**: Ghostty `main` requires Zig 0.17.0 or newer (older Ghostty pins used 0.15.2). Use the `ZIG` make variable to point at the right binary.
 - **Build command**: `make build-static` (builds libghostty-vt from submodule + compiles Go). Don't use bare `go build`.
 - **`KeyUnknown` doesn't exist**: Use `KeyUnidentified` (value 0) as the zero/unknown sentinel for `libghostty.Key`.
-- **`send_keys` accepts both PascalCase and snake_case key names**: `libghostty.ParseKey` only accepts snake_case (e.g. `tab`, `arrow_down`), but `SendKeys` normalizes W3C PascalCase names (e.g. `Tab`, `ArrowDown`) to snake_case automatically via `normalizeKey()`. Prefer PascalCase in MCP requests.
+- **`send_keys` accepts both PascalCase and snake_case key names**: `libghostty.ParseKey` only accepts snake_case (e.g. `tab`, `arrow_down`), but `SendKeys` normalizes W3C PascalCase names (e.g. `Tab`, `ArrowDown`) to snake_case automatically via `input.NormalizeKey()`. Prefer PascalCase in MCP requests.
 - **`MousePosition` uses `float32`**: Not `uint32` or `int`.
 - **`Graphemes()` returns `[]uint32`**: Not a string — must convert codepoints to runes.
 - **`CellWideWide`**: Not `CellWideYes`. Other constants: `CellWideNarrow`, `CellWideSpacerHead`, `CellWideSpacerTail`.
@@ -290,9 +306,11 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **`WaitFor` takes `sync.Locker`**: The first arg is the mutex, not the terminal. This allows per-iteration lock/unlock instead of holding the lock for the entire wait duration.
 - **`List()` acquires per-terminal mutex**: Reads `Cols`/`Rows` under `mt.mu` to avoid data race with concurrent resize.
 - **Don't read Ptmx from two goroutines**: `ptyReadLoop` already reads from `Ptmx`. To get PTY output, use `Subscribe()` instead of reading `Ptmx` directly — otherwise data is randomly split between readers.
-- **`mcp` subcommand uses `server.New()`**: Not `daemon.New()`. The MCP server is a stdio JSON-RPC server; the daemon is a Unix socket server.
-- **Daemon socket path**: `~/.local/share/tabdance-test/daemon.sock` (override with `TABDANCE_TEST_SOCK`). PID file at `~/.local/share/tabdance-test/daemon.pid`.
+- **`mcp` subcommand uses `server.New(version)`**: Not `daemon.New()`. The MCP server is a stdio JSON-RPC server; the daemon is a Unix socket server. The version string comes from `internal/version`.
+- **Daemon socket path**: `~/.local/share/tabdance-test/daemon.sock` (override with `TABDANCE_TEST_SOCK`). PID file at `~/.local/share/tabdance-test/daemon.pid`, plus `daemon.pid.lock` (flock held for the daemon's lifetime, never deleted). Socket dir is 0700, socket file 0600.
 - **Daemon idle timeout**: 30s after last terminal closed and no client connected (override with `TABDANCE_TEST_IDLE_TIMEOUT`).
+- **Daemon shutdown is signal-driven**: SIGINT/SIGTERM remove the socket and pid files and close all terminals. The flock lock file is intentionally kept on disk (deleting it would race lock waiters).
+- **Child processes are reaped exactly once**: `startPTY` spawns a goroutine calling `cmd.Wait()`; do not add another wait — it would degrade into double-wait races. Testing shells must not rely on `SIGTERM` semantics other than the existing SIGTERM-then-SIGKILL escalation in `Close`.
 
 ## Dependencies
 
@@ -309,10 +327,20 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 ## Testing
 
 ```sh
-make test  # Builds libghostty-vt from submodule, then runs go test ./...
+make test        # Build libghostty-vt (skipped if cached) + go test ./...
+make test-race   # Same with the race detector
+make vet         # go vet
+make fmt         # gofmt check + fix
 ```
 
-Integration tests in `internal/server/server_test.go` cover: create/close, list, get_view, get_cursor, get_size, resize, invalid terminal ID, and golden file verification for nonexistent files.
+Unit tests cover: terminal manager (unique IDs, delete semantics, name-list dedupe), daemon instance lock and bool-parameter defaults, key-name normalization, wait-scope normalization, and key combo parsing. Integration tests in `internal/server/server_test.go` cover: create/close, list, get_view, get_cursor, get_size, resize, invalid terminal ID, and golden file verification for nonexistent files. CI (`.github/workflows/build.yml`) runs the goreleaser snapshot build, a gofmt lint job, and `make test` + `make vet`.
+
+## Repository Layout Notes
+
+- `README.md` — user-facing overview, quickstart, and capability matrix.
+- `AGENTS.md` — this file: contributor/agent reference.
+- `docs/plan.md`, `docs/plan-cli.md` — historical design scratch notes kept for context.
+- `skills/` — Crush skill references (ghostty, asciinema, vhs, tabdance-test).
 
 ## Cross-Project Skills
 

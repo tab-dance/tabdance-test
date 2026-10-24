@@ -10,13 +10,13 @@ import (
 )
 
 type JSONViewResult struct {
-	Cols          uint16            `json:"cols"`
-	Rows          uint16            `json:"rows"`
-	CursorX       uint16            `json:"cursor_x"`
-	CursorY       uint16            `json:"cursor_y"`
-	CursorVisible bool              `json:"cursor_visible"`
-	CursorStyle   string            `json:"cursor_style"`
-	ActiveScreen  string            `json:"active_screen"`
+	Cols          uint16              `json:"cols"`
+	Rows          uint16              `json:"rows"`
+	CursorX       uint16              `json:"cursor_x"`
+	CursorY       uint16              `json:"cursor_y"`
+	CursorVisible bool                `json:"cursor_visible"`
+	CursorStyle   string              `json:"cursor_style"`
+	ActiveScreen  string              `json:"active_screen"`
 	Cells         map[string]jsonCell `json:"cells,omitempty"`
 }
 
@@ -64,25 +64,7 @@ func BuildJSONView(term *libghostty.Terminal) (*JSONViewResult, error) {
 		screenStr = "alternate"
 	}
 
-	cursorStyleStr := "bar"
-	rs, _ := libghostty.NewRenderState()
-	if rs != nil {
-		defer rs.Close()
-		if err := rs.Update(term); err == nil {
-			if cs, err := rs.CursorVisualStyle(); err == nil {
-				switch cs {
-				case libghostty.CursorVisualStyleBlock:
-					cursorStyleStr = "block"
-				case libghostty.CursorVisualStyleUnderline:
-					cursorStyleStr = "underline"
-				case libghostty.CursorVisualStyleBlockHollow:
-					cursorStyleStr = "block_hollow"
-				default:
-					cursorStyleStr = "bar"
-				}
-			}
-		}
-	}
+	cursorStyleStr := cursorStyleString(term)
 
 	reverseColors, _ := term.Mode(libghostty.ModeReverseColors)
 
@@ -98,7 +80,7 @@ func BuildJSONView(term *libghostty.Terminal) (*JSONViewResult, error) {
 			if err != nil {
 				continue
 			}
-			c := collectJSONCell(ref, x, y, term, reverseColors)
+			c := collectJSONCell(ref, reverseColors)
 			if !isDefaultCell(c) {
 				cells[fmt.Sprintf("%d,%d", y, x)] = c
 			}
@@ -124,7 +106,7 @@ func isDefaultCell(c jsonCell) bool {
 		!c.Wide && !c.Bold && !c.Italic && !c.Inverse && c.Hyperlink == ""
 }
 
-func collectJSONCell(ref *libghostty.GridRef, _ uint16, _ uint32, _ *libghostty.Terminal, reverseColors bool) jsonCell {
+func collectJSONCell(ref *libghostty.GridRef, reverseColors bool) jsonCell {
 	c := jsonCell{}
 
 	var cell *libghostty.Cell
@@ -218,13 +200,13 @@ func ExtractSVGGridJSON(svgContent string) (string, error) {
 func normalizeGridJSON(raw string) (string, error) {
 	// Try sparse format first (map[string]jsonCell)
 	var sparse struct {
-		Cols          uint16             `json:"cols"`
-		Rows          uint16             `json:"rows"`
-		CursorX       uint16             `json:"cursor_x"`
-		CursorY       uint16             `json:"cursor_y"`
-		CursorVisible bool               `json:"cursor_visible"`
-		CursorStyle   string             `json:"cursor_style"`
-		ActiveScreen  string             `json:"active_screen"`
+		Cols          uint16              `json:"cols"`
+		Rows          uint16              `json:"rows"`
+		CursorX       uint16              `json:"cursor_x"`
+		CursorY       uint16              `json:"cursor_y"`
+		CursorVisible bool                `json:"cursor_visible"`
+		CursorStyle   string              `json:"cursor_style"`
+		ActiveScreen  string              `json:"active_screen"`
 		Cells         map[string]jsonCell `json:"cells"`
 	}
 	if err := json.Unmarshal([]byte(raw), &sparse); err == nil && sparse.Cells != nil {
@@ -237,13 +219,13 @@ func normalizeGridJSON(raw string) (string, error) {
 
 	// Try dense format ([][]jsonCell) for backward compatibility
 	var dense struct {
-		Cols          uint16      `json:"cols"`
-		Rows          uint16      `json:"rows"`
-		CursorX       uint16      `json:"cursor_x"`
-		CursorY       uint16      `json:"cursor_y"`
-		CursorVisible bool        `json:"cursor_visible"`
-		CursorStyle   string      `json:"cursor_style"`
-		ActiveScreen  string      `json:"active_screen"`
+		Cols          uint16       `json:"cols"`
+		Rows          uint16       `json:"rows"`
+		CursorX       uint16       `json:"cursor_x"`
+		CursorY       uint16       `json:"cursor_y"`
+		CursorVisible bool         `json:"cursor_visible"`
+		CursorStyle   string       `json:"cursor_style"`
+		ActiveScreen  string       `json:"active_screen"`
 		Cells         [][]jsonCell `json:"cells"`
 	}
 	if err := json.Unmarshal([]byte(raw), &dense); err != nil {
@@ -261,13 +243,13 @@ func normalizeGridJSON(raw string) (string, error) {
 	}
 
 	result := struct {
-		Cols          uint16             `json:"cols"`
-		Rows          uint16             `json:"rows"`
-		CursorX       uint16             `json:"cursor_x"`
-		CursorY       uint16             `json:"cursor_y"`
-		CursorVisible bool               `json:"cursor_visible"`
-		CursorStyle   string             `json:"cursor_style"`
-		ActiveScreen  string             `json:"active_screen"`
+		Cols          uint16              `json:"cols"`
+		Rows          uint16              `json:"rows"`
+		CursorX       uint16              `json:"cursor_x"`
+		CursorY       uint16              `json:"cursor_y"`
+		CursorVisible bool                `json:"cursor_visible"`
+		CursorStyle   string              `json:"cursor_style"`
+		ActiveScreen  string              `json:"active_screen"`
 		Cells         map[string]jsonCell `json:"cells"`
 	}{
 		Cols:          dense.Cols,

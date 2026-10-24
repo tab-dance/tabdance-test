@@ -3,6 +3,8 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
 func (c *Client) Exec(command string, cols, rows, scrollback int, env map[string]string, workingDir, recordPath string) (string, error) {
@@ -36,7 +38,7 @@ func (c *Client) Exec(command string, cols, rows, scrollback int, env map[string
 	return id, nil
 }
 
-func (c *Client) Ls() ([]terminalInfo, error) {
+func (c *Client) Ls() ([]terminal.TerminalInfo, error) {
 	resp, err := c.Call("ls", nil)
 	if err != nil {
 		return nil, err
@@ -46,7 +48,7 @@ func (c *Client) Ls() ([]terminalInfo, error) {
 	}
 
 	data, _ := json.Marshal(resp.Result)
-	var infos []terminalInfo
+	var infos []terminal.TerminalInfo
 	if err := json.Unmarshal(data, &infos); err != nil {
 		return nil, err
 	}

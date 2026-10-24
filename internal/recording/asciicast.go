@@ -8,11 +8,11 @@ import (
 )
 
 type AsciicastRecorder struct {
-	file       *os.File
-	enc        *json.Encoder
-	start      time.Time
-	idleLimit  float64
-	lastWrite  float64
+	file      *os.File
+	enc       *json.Encoder
+	start     time.Time
+	idleLimit float64
+	lastWrite float64
 }
 
 func NewAsciicastRecorder(path string, width, height int, idleLimit float64) (*AsciicastRecorder, error) {
