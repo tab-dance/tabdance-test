@@ -37,6 +37,9 @@ func TestCloseWritesTrailingIdleEvent(t *testing.T) {
 	if rows, _ := term["rows"].(float64); int(rows) != 24 {
 		t.Fatalf("term.rows = %v, want 24", term["rows"])
 	}
+	if _, ok := header["idle_time_limit"]; ok {
+		t.Fatalf("idle_time_limit must be omitted for unbounded playback: %v", header)
+	}
 
 	var total float64
 	for _, ev := range events {
@@ -76,7 +79,10 @@ func TestIdleTimeLimitTrimsIntervals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, events := readCast(t, path)
+	header, events := readCast(t, path)
+	if lim, _ := header["idle_time_limit"].(float64); lim != 0.05 {
+		t.Fatalf("idle_time_limit = %v, want 0.05", header["idle_time_limit"])
+	}
 	if len(events) != 3 {
 		t.Fatalf("expected 3 events, got %d", len(events))
 	}

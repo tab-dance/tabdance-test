@@ -37,7 +37,7 @@ Asciicast v3 is based on **newline-delimited JSON** (JSON Lines). The file consi
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | `timestamp` | Integer | Unix timestamp of recording start. |
-| `idle_time_limit` | Float | Max idle time between events. Players reduce inactivity delays to at most this value. |
+| `idle_time_limit` | Float | Max idle time between events. Players reduce inactivity delays to at most this value. `0` means exactly that — every gap collapses to zero and playback finishes instantly — so omit the attribute entirely for unbounded playback. |
 | `command` | String | The command that was recorded. |
 | `title` | String | Title of the recording. |
 | `env` | Object (String→String) | Captured environment (v3 callers capture `SHELL` by default; `TERM` lives in `term.type`). Unknown attributes must be ignored. |

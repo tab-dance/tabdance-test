@@ -36,9 +36,14 @@ func NewAsciicastRecorder(path string, width, height int, idleLimit float64) (*A
 	}
 
 	header := map[string]any{
-		"version":         3,
-		"term":            map[string]any{"cols": width, "rows": height, "type": "xterm-ghostty"},
-		"idle_time_limit": idleLimit,
+		"version": 3,
+		"term":    map[string]any{"cols": width, "rows": height, "type": "xterm-ghostty"},
+	}
+	// idle_time_limit means "cap inactivity at this many seconds" for
+	// players; 0 would clip every gap to zero, so omit it entirely
+	// (absent = unbounded playback).
+	if idleLimit > 0 {
+		header["idle_time_limit"] = idleLimit
 	}
 	if err := r.enc.Encode(header); err != nil {
 		f.Close()

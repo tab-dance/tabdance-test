@@ -28,7 +28,7 @@ Terminal Session
 Produces asciicast **v3**: header with `version: 3` and a `term` object (`cols`/`rows`/`type`), then events whose first element is the **interval since the previous event**:
 
 ```json
-{"version": 3, "term": {"cols": 80, "rows": 24, "type": "xterm-ghostty"}, "idle_time_limit": 0}
+{"version": 3, "term": {"cols": 80, "rows": 24, "type": "xterm-ghostty"}}
 [0.002164768, "o", "\u001b[?2004h"]
 [0.10047151, "i", "c"]
 ```
@@ -97,7 +97,10 @@ func (r *AsciicastRecorder) Close() error {
 Without it, a cast issued during quiet time (e.g. a trailing `Sleep 5s` in a tape)
 would end at its last real event and playback would stop early. With `idleLimit > 0`
 (daemon/MCP recordings default to 2.0) the interval is clamped instead, so long dead
-tails are shortened. `tt run --record` writes `idle_time_limit: 0` (no clamping).
+tails are shortened. With `idleLimit == 0` (`tt run --record`) the header
+**omits** `idle_time_limit` entirely: `0` is not "no limit" but "cap
+inactivity at 0 seconds" — every playback gap would collapse to zero and
+players like `asciinema play` would finish instantly.
 
 ## Integration with TerminalManager
 
