@@ -25,7 +25,7 @@ func TestShellToCommand(t *testing.T) {
 		{"nu", "nu --no-config-file"},
 		{"osh", "osh --norc"},
 		{"xonsh", "xonsh --no-rc -DXONSH_SUPPRESS_WELCOME=True"},
-		{"elvish", "elvish"},
+		{"elvish", "elvish -norc"},
 		{"custom-shell", "custom-shell"},
 	}
 
@@ -228,5 +228,25 @@ func TestParseCtrlCombo(t *testing.T) {
 				t.Errorf("parseCtrlCombo(%q) mods = %v, want %v", tt.input, mods, tt.wantMods)
 			}
 		})
+	}
+}
+
+func TestCheckpointsRecordedForAnchors(t *testing.T) {
+	mt := newExecTerminal(t, "ckpt", "sh")
+	var labels []string
+	ex := NewTapeExecutor(mt, 5*time.Second)
+	ex.SetCheckpoints(func(label string) { labels = append(labels, label) })
+	path := writeTape(t, "Type \"echo ckpt\"\nEnter\nWait+Screen /ckpt/\nWaitStable @500ms\nExpect /ckpt/ +Screen\n")
+	if err := ex.Execute(path); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	want := []string{`Wait+Screen /ckpt/`, `Expect /ckpt/ +Screen`}
+	if len(labels) != len(want) {
+		t.Fatalf("recorded %v, want %v", labels, want)
+	}
+	for i := range want {
+		if labels[i] != want[i] {
+			t.Errorf("checkpoint %d = %q, want %q", i, labels[i], want[i])
+		}
 	}
 }

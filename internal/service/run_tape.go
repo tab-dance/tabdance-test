@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/tab-dance/tabdance-test/internal/golden"
@@ -119,6 +120,26 @@ func (s *Service) RunTape(o RunTapeOptions) (*RunTapeOutcome, error) {
 	if settings.TypingSpeed > 0 {
 		executor.SetTypingSpeed(settings.TypingSpeed)
 	}
+
+	// Checkpoint collector: every anchor (Expect, Wait+Screen) records a
+	// labeled golden section; the final screen becomes the last section.
+	type section struct {
+		label   string
+		content string
+	}
+	var sections []section
+	if o.GoldenPath != "" {
+		executor.SetCheckpoints(func(label string) {
+			mt.Lock()
+			content, err := golden.Capture(mt.Terminal, "plain", true, true)
+			mt.Unlock()
+			if err != nil {
+				return
+			}
+			sections = append(sections, section{label: label, content: content})
+		})
+	}
+
 	if err := executor.Execute(o.TapePath); err != nil {
 		return out, fmt.Errorf("execute tape: %w", err)
 	}
@@ -135,25 +156,56 @@ func (s *Service) RunTape(o RunTapeOptions) (*RunTapeOutcome, error) {
 	out.Verified = true
 	out.Updated = o.Update
 
+	labels := make([]string, len(sections))
+	contents := make([]string, len(sections))
+	for i, sec := range sections {
+		labels[i] = sec.label
+		contents[i] = sec.content
+	}
+	if len(labels) == 0 {
+		return out, fmt.Errorf("FAIL: no checkpoint anchors (Wait/Expect) in tape; golden requires at least one")
+	}
+
 	if o.Update {
-		mt.Lock()
-		err := golden.UpdateGolden(mt.Terminal, o.GoldenPath, "plain", true, true)
-		mt.Unlock()
-		if err != nil {
+		if err := golden.SaveSections(o.GoldenPath, labels, contents); err != nil {
 			return out, err
 		}
 		out.Progress = append(out.Progress, fmt.Sprintf("UPDATED %s", o.GoldenPath))
 		return out, nil
 	}
 
-	mt.Lock()
-	result, err := golden.VerifyOutput(mt.Terminal, o.GoldenPath, "plain", true, true)
-	mt.Unlock()
+	expectedLabels, expectedContents, err := golden.LoadSections(o.GoldenPath)
 	if err != nil {
-		return out, err
+		if os.IsNotExist(err) {
+			return out, fmt.Errorf("FAIL: golden file %q does not exist", o.GoldenPath)
+		}
+		return out, fmt.Errorf("read golden: %w", err)
 	}
-	if !result.Match {
-		return out, fmt.Errorf("FAIL\n%s", result.Diff)
+
+	actual := golden.SectionsText(labels, contents)
+	expected := golden.SectionsText(expectedLabels, expectedContents)
+	if len(expectedLabels) != len(labels) {
+		return out, fmt.Errorf("FAIL: golden has %d sections, replay produced %d",
+			len(expectedLabels), len(labels))
+	}
+	for i := range labels {
+		if i < len(expectedLabels) && expectedLabels[i] != labels[i] {
+			return out, fmt.Errorf("FAIL: section %d label differs: golden %q, anchor %q",
+				i+1, expectedLabels[i], labels[i])
+		}
+	}
+	if expected != actual {
+		for i := range contents {
+			if contents[i] != expectedContents[i] {
+				diff, derr := golden.DiffText(expectedContents[i], contents[i], o.GoldenPath)
+				if derr == nil {
+					return out, fmt.Errorf("FAIL: section %d (%s) differs\n%s", i+1, labels[i], diff)
+				}
+			}
+		}
+		if diff, derr := golden.DiffText(expected, actual, o.GoldenPath); derr == nil {
+			return out, fmt.Errorf("FAIL\n%s", diff)
+		}
 	}
 	out.Match = true
 

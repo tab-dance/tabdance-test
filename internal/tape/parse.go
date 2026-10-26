@@ -84,6 +84,9 @@ func ShellToCommand(shell string) string {
 		return "nu --no-config-file"
 	case "osh":
 		return "osh --norc"
+	case "elvish":
+		// -norc: user rc files (starship etc.) leak prompts into goldens
+		return "elvish -norc"
 	case "xonsh":
 		return "xonsh --no-rc -DXONSH_SUPPRESS_WELCOME=True"
 	default:
