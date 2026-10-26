@@ -8,7 +8,7 @@ import (
 
 var attachCmd = &cobra.Command{
 	Use:   "attach <id>",
-	Short: "Attach to terminal's PTY output (streaming)",
+	Short: "Stream raw PTY output from attach time (Ctrl+C to detach)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return newClient().Attach(args[0])

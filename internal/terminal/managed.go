@@ -185,21 +185,35 @@ func (m *ManagedTerminal) ptyReadLoop() {
 		if rec != nil {
 			rec.WriteOutput(data)
 		}
-		for _, sub := range m.subscribers {
-			select {
-			case sub.ch <- data:
-			default:
-				n := int64(len(data))
-				sub.dropped.Add(n)
+		subs := append([]*outputSubscriber(nil), m.subscribers...)
+		m.mu.Unlock()
+
+		// Deliver without holding the mutex so a slow consumer cannot stall
+		// VTWrite; buf is reused by the next Read, so the chunk must be
+		// copied because queued subscribers may outlive this iteration.
+		if len(subs) > 0 {
+			chunk := make([]byte, len(data))
+			copy(chunk, data)
+			for _, sub := range subs {
+				sub.deliver(chunk)
 			}
 		}
-		m.mu.Unlock()
 	}
 }
 
 func (m *ManagedTerminal) Close() {
 	m.close.Do(func() {
 		close(m.done)
+
+		// Wake any attach consumers blocked in deliver and end their range
+		// loops; otherwise a closed terminal leaves them hanging forever.
+		m.mu.Lock()
+		subs := m.subscribers
+		m.subscribers = nil
+		m.mu.Unlock()
+		for _, sub := range subs {
+			sub.closeUnsubscribed()
+		}
 
 		if rec := m.recPtr.Load(); rec != nil {
 			rec.Close()
@@ -323,12 +337,23 @@ func (m *ManagedTerminal) GetMouseEncoder() *libghostty.MouseEncoder {
 	return m.MouseEncoder
 }
 
-func (m *ManagedTerminal) Subscribe() *outputSubscriber {
-	sub := &outputSubscriber{ch: make(chan []byte, 64)}
-	m.mu.Lock()
+// subscriberQueue is the delivery buffer per output subscriber.
+const subscriberQueue = 256
+
+// subscribeLocked registers a new subscriber; the caller must hold m.mu.
+// Registration under the lock is what makes attach streams gapless: every
+// output chunk is broadcast either before or after registration, never
+// between the two.
+func (m *ManagedTerminal) subscribeLocked() *outputSubscriber {
+	sub := newOutputSubscriber(subscriberQueue)
 	m.subscribers = append(m.subscribers, sub)
-	m.mu.Unlock()
 	return sub
+}
+
+func (m *ManagedTerminal) Subscribe() *outputSubscriber {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.subscribeLocked()
 }
 
 func (m *ManagedTerminal) Unsubscribe(sub *outputSubscriber) {
@@ -340,7 +365,7 @@ func (m *ManagedTerminal) Unsubscribe(sub *outputSubscriber) {
 		}
 	}
 	m.mu.Unlock()
-	close(sub.ch)
+	sub.closeUnsubscribed()
 }
 
 // childPgid returns the child's process group ID (its PID, since
