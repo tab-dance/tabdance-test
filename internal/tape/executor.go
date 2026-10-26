@@ -35,6 +35,7 @@ type Terminal interface {
 	GetMouseEncoder() *libghostty.MouseEncoder
 	Resize(cols, rows uint16) error
 	AddMarker(label string) error
+	IsRecording() bool
 	RecentOutput(n int) []byte
 	LastOutputTime() time.Time
 	ExitState() (exited bool, exitCode int, signal string)
@@ -172,10 +173,14 @@ func (e *TapeExecutor) executeCommand(cmd parser.Command) error {
 		return e.executeWait(cmd)
 	case token.SET:
 		return e.executeSet(cmd)
-	case token.HIDE:
-		return e.terminal.AddMarker("hide")
-	case token.SHOW:
-		return e.terminal.AddMarker("show")
+	case token.HIDE, token.SHOW:
+		if e.terminal.IsRecording() {
+			if cmd.Type == token.SHOW {
+				return e.terminal.AddMarker("show")
+			}
+			return e.terminal.AddMarker("hide")
+		}
+		return nil
 	case token.SCREENSHOT:
 		return e.terminal.AddMarker(fmt.Sprintf("screenshot: %s", cmd.Args))
 	case token.OUTPUT:
