@@ -362,6 +362,15 @@ func (m *ManagedTerminal) Subscribe() *outputSubscriber {
 // chunk is either folded into the snapshot or queued for the subscriber,
 // never both and never neither: an attach consumer sees the existing
 // screen exactly once, then live output continues seamlessly.
+//
+// The snapshot enables the formatter's extra state emission. The consumer
+// terminal has no prior context, so rendering the grid alone is not
+// enough: mode sequences (alternate screen, cursor visibility, bracketed
+// paste, mouse tracking, ...), the current SGR style, cursor position,
+// and keyboard mode must be replayed too, or later output chunks redraw
+// relative to a consumer state that does not match (garbled TUI menus,
+// broken alternate-screen exits). The library emits modes before content
+// and the cursor position last, giving us one ordered sync packet.
 func (m *ManagedTerminal) SubscribeWithSnapshot() (*outputSubscriber, []byte, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -370,6 +379,15 @@ func (m *ManagedTerminal) SubscribeWithSnapshot() (*outputSubscriber, []byte, er
 		libghostty.WithFormatterFormat(libghostty.FormatterFormatVT),
 		libghostty.WithFormatterTrim(false),
 		libghostty.WithFormatterUnwrap(false),
+		libghostty.WithFormatterExtraModes(true),
+		libghostty.WithFormatterExtraCursor(true),
+		libghostty.WithFormatterExtraStyle(true),
+		libghostty.WithFormatterExtraKittyKeyboard(true),
+		libghostty.WithFormatterExtraKeyboard(true),
+		libghostty.WithFormatterExtraScrollingRegion(true),
+		libghostty.WithFormatterExtraTabstops(true),
+		libghostty.WithFormatterExtraProtection(true),
+		libghostty.WithFormatterExtraCharsets(true),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create formatter: %w", err)
