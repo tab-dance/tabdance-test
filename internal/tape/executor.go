@@ -117,6 +117,8 @@ func extVerbName(ext extension) string {
 		return "WaitCommand"
 	case extResize:
 		return "Resize"
+	case extRaw:
+		return "Raw"
 	default:
 		return "extension"
 	}

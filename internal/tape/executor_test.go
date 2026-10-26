@@ -152,6 +152,14 @@ func TestHideShowWhileRecording(t *testing.T) {
 	}
 }
 
+func TestRawVerb(t *testing.T) {
+	mt := newExecTerminal(t, "rawverb", "sh")
+	path := writeTape(t, "Raw \"echo raw-ok\\r\"\nWaitStable @500ms\nExpect /raw-ok/ +Screen\n")
+	if err := NewTapeExecutor(mt, 5*time.Second).Execute(path); err != nil {
+		t.Fatalf("Raw verb replay failed: %v recent=%q", err, string(mt.RecentOutput(4096)))
+	}
+}
+
 func TestParseSettingsFileNotFound(t *testing.T) {
 	_, err := ParseSettings("/nonexistent/path.tape")
 	if err == nil {

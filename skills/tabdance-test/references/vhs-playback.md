@@ -53,7 +53,7 @@ func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor
 | `Sleep T` | `time.Sleep(parseDuration(T))` |
 | `Wait /pattern/` | Poll `Formatter.FormatString()` until regex matches |
 
-Extension verbs (executed inline, not VHS): `ExpectExit <code> @5s`, `WaitExit @5s`, `WaitStable @250ms`, `Expect /re/ [+Screen|+Line]`, `WaitPrompt @5s` (OSC 133 prompt marker), `WaitCommand 0 @5s` (OSC 133 command-finished marker, also asserting the shell-reported exit status), and `Resize 80 24` (applies at that point in the tape).
+Extension verbs (executed inline, not VHS): `ExpectExit <code> @5s`, `WaitExit @5s`, `WaitStable @250ms`, `Expect /re/ [+Screen|+Line]`, `WaitPrompt @5s` (OSC 133 prompt marker), `WaitCommand 0 @5s` (OSC 133 command-finished marker, also asserting the shell-reported exit status), `Resize 80 24` (applies at that point in the tape), and `Raw "\x1b"` (writes literal bytes to the PTY; cast2tape emits it for input bytes with no tape verb). `WaitStable` treats a terminal with zero output so far as stable only after a full quiet window, so a leading WaitStable never races shell startup.
 
 Both OSC verbs snapshot the marker counter when they run: one sync point per command. Prefer `WaitCommand` right after `Enter` (it carries the exit status); `WaitPrompt` asserts the prompt is ready for the NEXT command, so don't put both after the same Enter — the second verb's snapshot lands after both markers have arrived and it hangs until the next command produces markers. `run` injects OSC 133 integration for bash tapes automatically.
 | `Wait+Screen /pattern/` | Match against full screen content |
@@ -108,7 +108,7 @@ Lines starting with these four verbs are executed inline by the tt executor and 
 |------|---------|
 | `ExpectExit <code> @5s` | Wait for the child to exit, then assert its exit code (signal exits never match) |
 | `WaitExit @5s` | Wait for the child to exit (any status) |
-| `WaitStable @250ms` | Wait until no output for the given quiet window |
+| `WaitStable @250ms` | Wait until no output for the given quiet window (zero-output terminals must stay empty the whole window) |
 | `Expect /ready/ [+Screen|+Line]` | Assert immediately that the pattern is already on screen (no waiting) |
 
 Durations default to the tape's `Set WaitTimeout` / `--timeout`. `ParseSettings` strips these lines before the VHS parser so `Set Shell`/size settings keep working with `run`.

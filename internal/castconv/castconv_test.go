@@ -104,3 +104,35 @@ func TestOscInputIgnored(t *testing.T) {
 		t.Fatalf("OSC sequences should be dropped: %q", got)
 	}
 }
+
+func TestTypingSpeedFromRecordingTiming(t *testing.T) {
+	header := `{"version": 2, "width": 80, "height": 24}
+[0.0, "i", "a"]
+[0.1, "i", "b"]
+[0.2, "i", "c"]
+[0.3, "i", "d"]
+[0.4, "i", "e"]
+[0.5, "i", "\r"]
+`
+	path := writeCast(t, header)
+	cast, err := Parse(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tape := cast.ToTapeCast()
+	if !strings.Contains(tape, "Set TypingSpeed 100ms") {
+		t.Fatalf("expected 100ms typing speed from ~100ms gaps:\n%s", tape)
+	}
+
+	single := writeCast(t, `{"version": 2, "width": 80, "height": 24}
+[0.0, "i", "a"]
+`)
+	cast, err = Parse(single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tape = cast.ToTapeCast()
+	if strings.Contains(tape, "Set TypingSpeed") {
+		t.Fatalf("single-keystroke recording must not emit Set TypingSpeed:\n%s", tape)
+	}
+}
