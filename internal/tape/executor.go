@@ -3,6 +3,7 @@ package tape
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ type TapeExecutor struct {
 	timeout     time.Duration
 	typingSpeed time.Duration
 	depth       int
+	dir         string // directory of the tape currently being executed
 }
 
 type Terminal interface {
@@ -63,7 +65,14 @@ func (e *TapeExecutor) Execute(tapePath string) error {
 	if err != nil {
 		return fmt.Errorf("read tape: %w", err)
 	}
-	return e.ExecuteString(string(data))
+
+	// Source paths resolve relative to the including tape's directory
+	// (matching VHS), so nested tapes can reference neighbors.
+	savedDir := e.dir
+	e.dir = filepath.Dir(tapePath)
+	err = e.ExecuteString(string(data))
+	e.dir = savedDir
+	return err
 }
 
 // ExecuteString plays a tape from an in-memory source. Tabdance-test
@@ -189,8 +198,12 @@ func (e *TapeExecutor) executeCommand(cmd parser.Command) error {
 		if e.depth >= 10 {
 			return fmt.Errorf("source recursion depth limit exceeded")
 		}
+		target := cmd.Args
+		if e.dir != "" && !filepath.IsAbs(target) {
+			target = filepath.Join(e.dir, target)
+		}
 		e.depth++
-		return e.Execute(cmd.Args)
+		return e.Execute(target)
 	case token.ENV:
 		return nil
 	case token.SCROLL_UP:

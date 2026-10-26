@@ -25,7 +25,7 @@ func TestShellToCommand(t *testing.T) {
 		{"nu", "nu --no-config-file"},
 		{"osh", "osh --norc"},
 		{"xonsh", "xonsh --no-rc -DXONSH_SUPPRESS_WELCOME=True"},
-		{"elvish", "elvish"},
+		{"elvish", "elvish -norc"},
 		{"custom-shell", "custom-shell"},
 	}
 

@@ -3,6 +3,7 @@ package tape
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ const (
 	extWaitCommand
 	extResize
 	extRaw
+	extSource
 )
 
 // extension is one of the tabdance-test extension verbs that live outside
@@ -54,6 +56,7 @@ var extVerbs = map[string]extKind{
 	"WaitCommand": extWaitCommand,
 	"Resize":      extResize,
 	"Raw":         extRaw,
+	"Source":      extSource,
 }
 
 // splitExtensions separates extension lines from VHS tape segments while
@@ -90,12 +93,23 @@ func firstWord(line string) (string, string) {
 
 func parseExtension(kind extKind, rest string, line int) (extension, error) {
 	ext := extension{kind: kind, line: line}
-	if kind == extRaw {
-		decoded, err := strconv.Unquote(strings.TrimSpace(rest))
-		if err != nil {
-			return ext, fmt.Errorf("Raw takes a quoted string, e.g. Raw \"\\x1b\"")
+	if kind == extRaw || kind == extSource {
+		rest = strings.TrimSpace(rest)
+		if kind == extRaw {
+			decoded, err := strconv.Unquote(rest)
+			if err != nil {
+				return ext, fmt.Errorf("Raw takes a quoted string, e.g. Raw \"\\x1b\"")
+			}
+			ext.rawData = decoded
+			return ext, nil
 		}
-		ext.rawData = decoded
+		// Source takes a plain or quoted tape path, resolved relative to
+		// the including tape at execution time.
+		if unquoted, err := strconv.Unquote(rest); err == nil {
+			ext.rawData = unquoted
+		} else {
+			ext.rawData = rest
+		}
 		return ext, nil
 	}
 	rest, dur, err := splitTrailingDuration(rest)
@@ -250,6 +264,12 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 		return e.resize(ext.cols, ext.rows)
 	case extRaw:
 		return e.writeSeq([]byte(ext.rawData))
+	case extSource:
+		target := ext.rawData
+		if e.dir != "" && !filepath.IsAbs(target) {
+			target = filepath.Join(e.dir, target)
+		}
+		return e.Execute(target)
 	}
 	return fmt.Errorf("unknown extension kind %d", ext.kind)
 }
