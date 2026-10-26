@@ -25,6 +25,7 @@ const (
 	extWaitPrompt
 	extWaitCommand
 	extResize
+	extRaw
 )
 
 // extension is one of the tabdance-test extension verbs that live outside
@@ -35,6 +36,7 @@ type extension struct {
 	hasCode bool
 	cols    int
 	rows    int
+	rawData string
 	pattern string
 	scope   string
 	timeout time.Duration
@@ -51,6 +53,7 @@ var extVerbs = map[string]extKind{
 	"WaitPrompt":  extWaitPrompt,
 	"WaitCommand": extWaitCommand,
 	"Resize":      extResize,
+	"Raw":         extRaw,
 }
 
 // splitExtensions separates extension lines from VHS tape segments while
@@ -87,6 +90,14 @@ func firstWord(line string) (string, string) {
 
 func parseExtension(kind extKind, rest string, line int) (extension, error) {
 	ext := extension{kind: kind, line: line}
+	if kind == extRaw {
+		decoded, err := strconv.Unquote(strings.TrimSpace(rest))
+		if err != nil {
+			return ext, fmt.Errorf("Raw takes a quoted string, e.g. Raw \"\\x1b\"")
+		}
+		ext.rawData = decoded
+		return ext, nil
+	}
 	rest, dur, err := splitTrailingDuration(rest)
 	if err != nil {
 		return ext, fmt.Errorf("invalid duration: %w", err)
@@ -237,6 +248,8 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 		return e.waitCommand(timeout, ext.code, ext.hasCode)
 	case extResize:
 		return e.resize(ext.cols, ext.rows)
+	case extRaw:
+		return e.writeSeq([]byte(ext.rawData))
 	}
 	return fmt.Errorf("unknown extension kind %d", ext.kind)
 }
@@ -282,15 +295,23 @@ func exitWording(wantCode int, hasCode bool) string {
 }
 
 // waitStable blocks until the terminal has produced no output for the
-// given quiet window
+// given quiet window. A terminal that has not produced any output yet
+// must still stay empty for the full window: a fresh child typically
+// starts talking within milliseconds, so returning early would race
+// shell startup.
 func (e *TapeExecutor) waitStable(quiet time.Duration) error {
 	if quiet < 20*time.Millisecond {
 		quiet = 20 * time.Millisecond
 	}
 	deadline := time.Now().Add(e.timeout)
+	started := time.Now()
 	for {
 		last := e.terminal.LastOutputTime()
-		if last.IsZero() || time.Since(last) >= quiet {
+		if last.IsZero() {
+			if time.Since(started) >= quiet {
+				return nil
+			}
+		} else if time.Since(last) >= quiet {
 			return nil
 		}
 		if time.Now().After(deadline) {

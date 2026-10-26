@@ -147,7 +147,7 @@ os.WriteFile("snapshot.html", []byte(html), 0644)
 
 ## Asciicast Generation
 
-For asciicast v2 format details, see the **asciinema** skill → `references/asciicast-v2-format.md`.
+For asciicast v3 format details, see the **asciinema** skill → `references/asciicast-v3-format.md`.
 
 ### Single-Frame Recording
 

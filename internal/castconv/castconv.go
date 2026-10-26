@@ -1,23 +1,27 @@
-// Package castconv converts asciicast v2 recordings into deterministic
+// Package castconv converts asciicast v3 recordings into deterministic
 // tabdance-test tapes. Input events ("i") become Type/Key/Ctrl/Raw tape
-// lines, resize events become Resize, markers become comments, and
-// WaitStable lines anchor each input cluster so replay waits for output
-// to settle instead of sleeping for fixed durations.
+// lines, resize events become Resize, markers and exit-status events
+// become comments, and WaitStable lines anchor each input cluster so
+// replay waits for output to settle instead of sleeping for fixed
+// durations.
 package castconv
 
 import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
 type Event struct {
 	Time float64
-	Kind string // "o", "i", "m", "r"
+	Kind string // "o", "i", "m", "r", "x"
 	Data string
 }
 
@@ -26,7 +30,9 @@ type Cast struct {
 	Events        []Event
 }
 
-// Parse reads a cast file (JSON-lines: header first, then events).
+// Parse reads a cast file (JSON Lines: asciicast v3 header first, then
+// interval-timed events; "#" comment lines are ignored). Event times are
+// converted to absolute seconds since the recording start.
 func Parse(path string) (*Cast, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -38,34 +44,53 @@ func Parse(path string) (*Cast, error) {
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	lineNo := 0
+	headerSeen := false
+	abs := 0.0
 	for sc.Scan() {
 		lineNo++
 		line := sc.Bytes()
 		if len(line) == 0 {
 			continue
 		}
-		if line[0] == '{' && c.Events == nil {
+		if line[0] == '#' {
+			continue
+		}
+		if !headerSeen {
+			if line[0] != '{' {
+				return nil, fmt.Errorf("cast line %d: expected header, got %q", lineNo, line)
+			}
 			var header struct {
-				Width  int `json:"width"`
-				Height int `json:"height"`
+				Version int `json:"version"`
+				Term    struct {
+					Cols int `json:"cols"`
+					Rows int `json:"rows"`
+				} `json:"term"`
 			}
 			if err := json.Unmarshal(line, &header); err != nil {
 				return nil, fmt.Errorf("cast header line %d: %w", lineNo, err)
 			}
-			c.Width, c.Height = header.Width, header.Height
+			if header.Version != 3 {
+				return nil, fmt.Errorf("cast header line %d: unsupported asciicast version %d (this tool reads version 3 only)", lineNo, header.Version)
+			}
+			c.Width, c.Height = header.Term.Cols, header.Term.Rows
+			headerSeen = true
 			continue
 		}
 		var ev []any
 		if err := json.Unmarshal(line, &ev); err != nil || len(ev) < 3 {
 			return nil, fmt.Errorf("cast event line %d: malformed", lineNo)
 		}
-		ts, _ := ev[0].(float64)
+		interval, _ := ev[0].(float64)
 		kind, _ := ev[1].(string)
 		data, _ := ev[2].(string)
-		c.Events = append(c.Events, Event{Time: ts, Kind: kind, Data: data})
+		abs += interval
+		c.Events = append(c.Events, Event{Time: abs, Kind: kind, Data: data})
 	}
 	if err := sc.Err(); err != nil {
 		return nil, err
+	}
+	if !headerSeen {
+		return nil, fmt.Errorf("cast has no asciicast header")
 	}
 	if c.Width == 0 {
 		c.Width, c.Height = 80, 24
@@ -79,11 +104,15 @@ func (c *Cast) ToTapeCast() string {
 	out = append(out,
 		fmt.Sprintf("Set Width %d", c.Width),
 		fmt.Sprintf("Set Height %d", c.Height),
-		"WaitStable @500ms",
 	)
+	if speed := medianTypingSpeed(c.Events); speed >= 0 {
+		out = append(out, fmt.Sprintf("Set TypingSpeed %s", speed))
+	}
+	out = append(out, "WaitStable @500ms")
 
 	var pendingInput []string
 	var lastInputTime = -1.0
+	var gaps []float64
 	flushInput := func() {
 		if len(pendingInput) == 0 {
 			return
@@ -98,8 +127,13 @@ func (c *Cast) ToTapeCast() string {
 		case "i":
 			// Long pauses between keystrokes indicate separate interaction
 			// steps; separate them so replay waits for each result.
-			if lastInputTime >= 0 && ev.Time-lastInputTime >= 2.0 && len(pendingInput) > 0 {
-				flushInput()
+			if lastInputTime >= 0 {
+				delta := ev.Time - lastInputTime
+				if delta >= 2.0 && len(pendingInput) > 0 {
+					flushInput()
+				} else {
+					gaps = append(gaps, delta)
+				}
 			}
 			lastInputTime = ev.Time
 			pendingInput = append(pendingInput, decodeInput(ev.Data)...)
@@ -110,6 +144,13 @@ func (c *Cast) ToTapeCast() string {
 				flushInput()
 			}
 			out = append(out, fmt.Sprintf("# marker: %s", ev.Data))
+		case "x":
+			// exit status from the recorded session; replay shells stay
+			// alive, so this becomes a comment instead of ExpectExit
+			if len(pendingInput) > 0 {
+				flushInput()
+			}
+			out = append(out, fmt.Sprintf("# exit status: %s", ev.Data))
 		case "r":
 			if cols, rows, ok := parseResize(ev.Data); ok {
 				if len(pendingInput) > 0 {
@@ -127,6 +168,32 @@ func (c *Cast) ToTapeCast() string {
 
 func assemble(lines []string) string {
 	return strings.Join(lines, "\n") + "\n"
+}
+
+// medianTypingSpeed estimates the per-character replay delay from the gaps
+// between consecutive input events inside a cluster (< 2s apart). It returns
+// -1 when the recording has no such gaps (single keystroke or burst).
+func medianTypingSpeed(events []Event) time.Duration {
+	var gaps []float64
+	var last = -1.0
+	for _, ev := range events {
+		if ev.Kind != "i" {
+			continue
+		}
+		if last >= 0 {
+			if delta := ev.Time - last; delta < 2.0 {
+				gaps = append(gaps, delta)
+			}
+		}
+		last = ev.Time
+	}
+	if len(gaps) == 0 {
+		return -1
+	}
+	sort.Float64s(gaps)
+	median := gaps[len(gaps)/2]
+	ms := int64(math.Round(median * 1000))
+	return time.Duration(ms) * time.Millisecond
 }
 
 type inputDecoder struct {

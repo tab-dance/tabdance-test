@@ -1,10 +1,12 @@
 # Programmatic — Generating and Using Recordings
 
-In-depth reference for generating asciicast files programmatically, embedding recordings, and using asciinema in testing pipelines.
+In-depth reference for generating asciicast **v3** files programmatically, embedding recordings, and using asciinema in testing pipelines.
 
 ## Generating .cast Files in Go
 
 ### Basic Generation
+
+In asciicast v3 the header carries the terminal inside a `term` object, and event lines carry **intervals** (seconds since the previous event):
 
 ```go
 func writeAsciicast(outputPath string, width, height int, events []Event) error {
@@ -16,19 +18,21 @@ func writeAsciicast(outputPath string, width, height int, events []Event) error 
 
     // Write header
     header := map[string]interface{}{
-        "version": 2,
-        "width":   width,
-        "height":  height,
+        "version": 3,
+        "term": map[string]interface{}{
+            "cols": width,
+            "rows": height,
+            "type": "xterm-256color",
+        },
         "env": map[string]string{
-            "TERM":  "xterm-256color",
             "SHELL": "/bin/bash",
         },
     }
     if err := enc.Encode(header); err != nil { return err }
 
-    // Write events
+    // Write events (interval since the previous event)
     for _, e := range events {
-        event := []interface{}{e.Time, e.Code, e.Data}
+        event := []interface{}{e.Interval, e.Code, e.Data}
         if err := enc.Encode(event); err != nil { return err }
     }
 
@@ -36,9 +40,9 @@ func writeAsciicast(outputPath string, width, height int, events []Event) error 
 }
 
 type Event struct {
-    Time float64
-    Code string // "o", "i", "m", "r"
-    Data string
+    Interval float64
+    Code     string // "o", "i", "m", "r", "x"
+    Data     string
 }
 ```
 
@@ -54,9 +58,11 @@ func recordTerminal(term *libghostty.Terminal, outputPath string) error {
     content, _ := f.Format()
 
     header := map[string]interface{}{
-        "version": 2,
-        "width":   int(term.Cols()),
-        "height":  int(term.Rows()),
+        "version": 3,
+        "term": map[string]interface{}{
+            "cols": int(term.Cols()),
+            "rows": int(term.Rows()),
+        },
     }
 
     event := []interface{}{0.0, "o", string(content)}
@@ -73,11 +79,15 @@ func recordTerminal(term *libghostty.Terminal, outputPath string) error {
 
 ### Incremental Recording with Timing
 
+Events are `[interval, code, data]`; track the delay since the previous event explicitly:
+
 ```go
 type AsciicastRecorder struct {
-    file    *os.File
-    enc     *json.Encoder
-    start   time.Time
+    file      *os.File
+    enc       *json.Encoder
+    start     time.Time
+    mu        sync.Mutex
+    elapsed   float64
 }
 
 func NewAsciicastRecorder(path string, width, height int) (*AsciicastRecorder, error) {
@@ -87,9 +97,11 @@ func NewAsciicastRecorder(path string, width, height int) (*AsciicastRecorder, e
     r := &AsciicastRecorder{file: f, enc: json.NewEncoder(f), start: time.Now()}
 
     header := map[string]interface{}{
-        "version": 2,
-        "width":   width,
-        "height":  height,
+        "version": 3,
+        "term": map[string]interface{}{
+            "cols": width,
+            "rows": height,
+        },
     }
     if err := r.enc.Encode(header); err != nil {
         f.Close()
@@ -99,32 +111,50 @@ func NewAsciicastRecorder(path string, width, height int) (*AsciicastRecorder, e
     return r, nil
 }
 
+// interval returns the seconds since the previously emitted event and
+// advances the bookkeeping; callers serialize writers with the mutex.
+func (r *AsciicastRecorder) interval() float64 {
+    gap := time.Since(r.start).Seconds() - r.elapsed
+    r.elapsed += gap
+    return gap
+}
+
 func (r *AsciicastRecorder) WriteOutput(data []byte) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "o", string(data)})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]interface{}{r.interval(), "o", string(data)})
 }
 
 func (r *AsciicastRecorder) WriteInput(data []byte) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "i", string(data)})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]interface{}{r.interval(), "i", string(data)})
 }
 
 func (r *AsciicastRecorder) WriteMarker(label string) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "m", label})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]interface{}{r.interval(), "m", label})
 }
 
 func (r *AsciicastRecorder) WriteResize(cols, rows int) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "r", fmt.Sprintf("%dx%d", cols, rows)})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]interface{}{r.interval(), "r", fmt.Sprintf("%dx%d", cols, rows)})
 }
 
 func (r *AsciicastRecorder) Close() error {
+    // Trailing no-op event keeps the quiet tail in playback.
+    r.mu.Lock()
+    _ = r.enc.Encode([]interface{}{r.interval(), "o", ""})
+    r.mu.Unlock()
     return r.file.Close()
 }
 ```
 
 ## Parsing .cast Files
+
+The first line is the v3 header (`version` must be 3, terminal inside `term`); skip `#` comment lines; accumulate event intervals if you need absolute times:
 
 ```go
 func ParseAsciicast(path string) (header map[string]interface{}, events []Event, err error) {
@@ -134,14 +164,21 @@ func ParseAsciicast(path string) (header map[string]interface{}, events []Event,
 
     scanner := bufio.NewScanner(f)
     first := true
+    abs := 0.0
 
     for scanner.Scan() {
         line := scanner.Bytes()
+        if len(line) == 0 || line[0] == '#' {
+            continue
+        }
 
         if first {
             first = false
             if err := json.Unmarshal(line, &header); err != nil {
                 return nil, nil, err
+            }
+            if int(header["version"].(float64)) != 3 {
+                return nil, nil, fmt.Errorf("unsupported asciicast version")
             }
             continue
         }
@@ -153,13 +190,14 @@ func ParseAsciicast(path string) (header map[string]interface{}, events []Event,
 
         if len(event) != 3 { continue }
 
-        var timeVal float64
+        var interval float64
         var code, data string
-        json.Unmarshal(event[0], &timeVal)
+        json.Unmarshal(event[0], &interval)
         json.Unmarshal(event[1], &code)
         json.Unmarshal(event[2], &data)
 
-        events = append(events, Event{Time: timeVal, Code: code, Data: data})
+        abs += interval
+        events = append(events, Event{Time: abs, Code: code, Data: data})
     }
 
     return header, events, nil
@@ -214,11 +252,12 @@ Parse a `.cast` file and replay its output events through a headless terminal, t
 func TestReplayRecording(t *testing.T) {
     header, events, _ := ParseAsciicast("testdata/recording.cast")
 
-    cols := int(header["width"].(float64))
-    rows := int(header["height"].(float64))
+    term := header["term"].(map[string]interface{})
+    cols := int(term["cols"].(float64))
+    rows := int(term["rows"].(float64))
 
-    term, _ := libghostty.NewTerminal(libghostty.WithSize(uint16(cols), uint16(rows)))
-    defer term.Close()
+    termInst, _ := libghostty.NewTerminal(libghostty.WithSize(uint16(cols), uint16(rows)))
+    defer termInst.Close()
 
     for _, e := range events {
         switch e.Code {

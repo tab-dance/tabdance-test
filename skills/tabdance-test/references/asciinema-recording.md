@@ -4,12 +4,10 @@ Reference for asciinema recording in tt: creating .cast files from headless term
 
 ## Overview
 
-tt can record terminal sessions as asciicast v2 files. This is useful for:
+tt records terminal sessions as **asciicast v3** files (interval-timed JSON Lines; see the **asciinema** skill for the format spec). This is useful for:
 - Debugging test failures (replay what happened)
 - Generating documentation
 - Creating visual test artifacts
-
-For asciicast v2 format details, see the **asciinema** skill.
 
 ## Recording Architecture
 
@@ -27,64 +25,91 @@ Terminal Session
 
 ## AsciicastRecorder
 
+Produces asciicast **v3**: header with `version: 3` and a `term` object (`cols`/`rows`/`type`), then events whose first element is the **interval since the previous event**:
+
+```json
+{"version": 3, "term": {"cols": 80, "rows": 24, "type": "xterm-ghostty"}}
+[0.002164768, "o", "\u001b[?2004h"]
+[0.10047151, "i", "c"]
+```
+
 ```go
 type AsciicastRecorder struct {
-    file    *os.File
-    enc     *json.Encoder
-    start   time.Time
+    file      *os.File
+    enc       *json.Encoder
+    start     time.Time
     idleLimit float64
+    elapsed   float64 // cumulative emitted time, trimmed by idleLimit
+    mu        sync.Mutex
 }
 
-func NewAsciicastRecorder(path string, width, height int, idleLimit float64) (*AsciicastRecorder, error) {
-    f, err := os.Create(path)
-    if err != nil { return nil, err }
-
-    r := &AsciicastRecorder{
-        file:       f,
-        enc:        json.NewEncoder(f),
-        start:      time.Now(),
-        idleLimit:  idleLimit,
+func (r *AsciicastRecorder) intervalLocked() float64 {
+    gap := time.Since(r.start).Seconds() - r.elapsed
+    if r.idleLimit > 0 && r.elapsed > 0 && gap > r.idleLimit {
+        gap = r.idleLimit
     }
-
-    header := map[string]interface{}{
-        "version":        2,
-        "width":          width,
-        "height":         height,
-        "env":            map[string]string{"TERM": "xterm-ghostty"},
-        "idle_time_limit": idleLimit,
-    }
-    if err := r.enc.Encode(header); err != nil {
-        f.Close()
-        return nil, err
-    }
-
-    return r, nil
+    r.elapsed += gap
+    return gap
 }
+```
 
+Event writers emit `[interval, code, data]` for codes `o` (output), `i` (input), `m` (marker label), and `r` (`"COLSxROWS"`):
+
+```go
 func (r *AsciicastRecorder) WriteOutput(data []byte) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "o", string(data)})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]any{r.intervalLocked(), "o", string(data)})
 }
 
 func (r *AsciicastRecorder) WriteInput(data []byte) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "i", string(data)})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]any{r.intervalLocked(), "i", string(data)})
 }
 
 func (r *AsciicastRecorder) WriteMarker(label string) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "m", label})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]any{r.intervalLocked(), "m", label})
 }
 
 func (r *AsciicastRecorder) WriteResize(cols, rows int) error {
-    elapsed := time.Since(r.start).Seconds()
-    return r.enc.Encode([]interface{}{elapsed, "r", fmt.Sprintf("%dx%d", cols, rows)})
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    return r.enc.Encode([]any{r.intervalLocked(), "r", fmt.Sprintf("%dx%d", cols, rows)})
 }
+```
 
+## Pause/Resume Capture (Hide/Show)
+
+`AsciicastRecorder.PauseRecording(paused bool)` suspends capture the way
+asciinema's `ctrl+\` mute does: while paused, all writers (output, input,
+markers, resize) drop their events and the timeline freezes; on resume the
+epoch is shifted forward past the paused wall time, so the cast contains no
+trace of the hidden interval. VHS-style tape `Hide`/`Show` verbs toggle this
+via `ManagedTerminal.PauseRecording`; they are no-ops without a recording.
+
+## Idle Handling and the Trailing Idle Event
+
+`Close` appends one no-op output event (`[interval, "o", ""]`) at the true stop time:
+
+```go
 func (r *AsciicastRecorder) Close() error {
+    r.mu.Lock()
+    _ = r.enc.Encode([]any{r.intervalLocked(), "o", ""})
+    r.mu.Unlock()
     return r.file.Close()
 }
 ```
+
+Without it, a cast issued during quiet time (e.g. a trailing `Sleep 5s` in a tape)
+would end at its last real event and playback would stop early. With `idleLimit > 0`
+(daemon/MCP recordings default to 2.0) the interval is clamped instead, so long dead
+tails are shortened. With `idleLimit == 0` (`tt run --record`) the header
+**omits** `idle_time_limit` entirely: `0` is not "no limit" but "cap
+inactivity at 0 seconds" — every playback gap would collapse to zero and
+players like `asciinema play` would finish instantly.
 
 ## Integration with TerminalManager
 
@@ -166,10 +191,11 @@ go func() {
 
 ## Playback
 
-Recorded .cast files can be played back with:
+Recorded v3 .cast files can be played back with:
 
 ```sh
 asciinema play recordings/test-session.cast
 ```
 
-Or embedded in documentation using asciinema-player.
+Playback needs asciinema CLI 3.x (or player/server v3.10+); older players only
+understand v2 — use `asciinema convert` if you must hand the file to one.

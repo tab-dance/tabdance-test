@@ -236,7 +236,7 @@ internal/
     cursor.go                # GetCursor: x, y, visible, pending_wrap, style
     size.go                  # GetSize: cols, rows, width_px, height_px
   recording/
-    asciicast.go             # AsciicastRecorder: asciicast v2 .cast files (output/input/marker/resize)
+    asciicast.go             # AsciicastRecorder: asciicast v3 .cast files (output/input/marker/resize)
   tape/
     executor.go              # TapeExecutor struct, Execute, executeCommand, executeSet
     execute.go               # Tape execution: executeType, sendKeys, executeCtrl/Alt/Shift, executeSleep, executeWait
@@ -317,7 +317,7 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 ## Tape Extension Verbs
 
-Lines at the start of a tape line may use seven verbs that tt executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` / `WaitCommand[<code>][@dur]` (OSC 133 semantic markers; `WaitCommand` also asserts the shell-reported exit status; counting semantics: each verb snapshots the marker counter at execution, so exactly one sync point per command — do not chain both verbs on one command), and `Resize <cols> <rows>` (used by the cast2tape converter; applies at the point the line occurs). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
+Lines at the start of a tape line may use eight verbs that tt executes inline (not part of VHS): `ExpectExit <code>[@dur]`, `WaitExit[@dur]`, `WaitStable[@dur]` (quiet window; the duration doubles as the settle window; a terminal with zero output so far must still stay empty for the whole window, so leading WaitStable never races shell startup), `Expect /re/ [+Screen|+Line]` (immediate assertion, no wait), `WaitPrompt[@dur]` / `WaitCommand[<code>][@dur]` (OSC 133 semantic markers; `WaitCommand` also asserts the shell-reported exit status; counting semantics: each verb snapshots the marker counter at execution, so exactly one sync point per command — do not chain both verbs on one command), `Resize <cols> <rows>` (applies at the point the line occurs), and `Raw "<quoted bytes>"` (writes literal bytes — including escapes like `\x1b` — straight to the PTY; emitted by the cast2tape converter for bytes that have no tape verb). `ParseSettings` strips them before the VHS parser; unknown first-word lines still produce VHS parse errors.
 
 ## Gotchas
 
@@ -383,7 +383,7 @@ Unit tests cover: terminal manager (unique IDs, delete semantics, name-list dedu
 ## Cross-Project Skills
 
 - **ghostty** skill — go-libghostty API details (Terminal, KeyEncoder, MouseEncoder, Formatter, GridRef, etc.)
-- **asciinema** skill — asciicast v2 format specification
+- **asciinema** skill — asciicast v3 format specification
 - **vhs** skill — VHS tape DSL and parsing
 - **bubbletea** skill — Bubble Tea framework internals
 - **tabdance** skill — tabdance application internals

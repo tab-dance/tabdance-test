@@ -128,13 +128,13 @@ func TestHideShowWithoutRecordingIsNoop(t *testing.T) {
 }
 
 func TestHideShowWhileRecording(t *testing.T) {
-	mt := newExecTerminal(t, "hide-rec", "")
+	mt := newExecTerminal(t, "hide-rec", "sh")
 	cast := filepath.Join(t.TempDir(), "rec.cast")
 	if err := mt.StartRecording(cast, 1.0); err != nil {
 		t.Fatalf("start recording: %v", err)
 	}
-	path := writeTape(t, "Hide\nShow\n")
-	if err := NewTapeExecutor(mt, time.Second).Execute(path); err != nil {
+	path := writeTape(t, "Hide\nType \"hidden\"\nEnter\nWaitStable @250ms\nShow\nType \"visible\"\nEnter\nWaitStable @250ms\n")
+	if err := NewTapeExecutor(mt, 5*time.Second).Execute(path); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 	if err := mt.StopRecording(); err != nil {
@@ -145,10 +145,22 @@ func TestHideShowWhileRecording(t *testing.T) {
 		t.Fatal(err)
 	}
 	content := string(data)
-	for _, want := range []string{`,"m","hide"`, `,"m","show"`} {
-		if !strings.Contains(content, want) {
-			t.Errorf("cast file missing %s:\n%s", want, content)
-		}
+	if strings.Contains(content, "hidden") {
+		t.Errorf("events must not be recorded while Hide is active:\n%s", content)
+	}
+	if strings.Contains(content, `,"m","hide"`) || strings.Contains(content, `,"m","show"`) {
+		t.Errorf("Hide/Show must not become markers (asciinema cast format has no hide/show):\n%s", content)
+	}
+	if !strings.Contains(content, `,"i","v"`) {
+		t.Errorf("events after Show must be recorded:\n%s", content)
+	}
+}
+
+func TestRawVerb(t *testing.T) {
+	mt := newExecTerminal(t, "rawverb", "sh")
+	path := writeTape(t, "Raw \"echo raw-ok\\r\"\nWaitStable @500ms\nExpect /raw-ok/ +Screen\n")
+	if err := NewTapeExecutor(mt, 5*time.Second).Execute(path); err != nil {
+		t.Fatalf("Raw verb replay failed: %v recent=%q", err, string(mt.RecentOutput(4096)))
 	}
 }
 
