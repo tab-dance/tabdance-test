@@ -40,13 +40,11 @@ Asciicast v3 is based on **newline-delimited JSON** (JSON Lines). The file consi
 | `idle_time_limit` | Float | Max idle time between events. Players reduce inactivity delays to at most this value. `0` means exactly that — every gap collapses to zero and playback finishes instantly — so omit the attribute entirely for unbounded playback. |
 | `command` | String | The command that was recorded. |
 | `title` | String | Title of the recording. |
-| `env` | Object (String→String) | Captured environment (v3 callers capture `SHELL` by default; `TERM` lives in `term.type`). Unknown attributes must be ignored. |
-| `tags` | Array of strings | Metadata tags. |
-| `theme` | Object | Color theme of the recorded terminal (`fg`, `bg`, `palette` — deprecated top-level sibling of `term.theme`). |
+| `env` | Object (String→String) | Captured environment (v3 default captures `SHELL`; `TERM` lives in `term.type`). Values must be strings — `null` env values fail v3 parsing (v2 tolerated them). Unknown attributes are ignored, so producers may add extra keys freely. |
 
 ## Event Stream
 
-Each event is `[interval, code, data]` where **interval** is the delay in seconds since the **previous event** (or the start of the recording for the first event). Interval-based timing makes inserting/deleting events easy. Millisecond precision with error diffusion is recommended when rounding.
+Each event is `[interval, code, data]` where **interval** is the delay in seconds since the **previous event** (or the start of the recording for the first event), accumulated into an absolute time on read. Interval-based timing makes inserting/deleting events easy. The writer in asciinema 3.x quantizes to milliseconds with error diffusion; readers keep microsecond precision.
 
 ### Event Types
 
@@ -60,7 +58,15 @@ Each event is `[interval, code, data]` where **interval** is the delay in second
 
 ### Comment Lines
 
-Lines starting with `#` (after the header) are comments and must be skipped by parsers. **The first line of the file must always be the header, never a comment.**
+Lines starting with `#` (after the header) and blank lines are skipped by parsers. **The first line of the file must always be the header, never a comment.**
+
+## Parser Behavior (verified against asciinema 3.x source)
+
+- **Format detection uses the first line only**: the v3 parser is tried first, then v2, then v1 (whole file); any parse error falls through silently and later event errors never affect detection. Files starting with the zstd magic bytes are decompressed transparently.
+- **Only `version == 3` discriminates v3 from v2** — there is no `deny_unknown_fields`, so extra header or `term` keys (even `width`/`height` leftovers) are tolerated and ignored.
+- **`term.theme` is strict**: when present, `fg`/`bg` must be exactly 7-character hex strings and `palette` must yield exactly 8 or 16 hex triplets. A malformed theme makes the v3 load fail, and the file then fails the other loaders too (generic “not a v1, v2, v3 asciicast file” error).
+- **Event time parsing truncates**: the interval's fractional part is truncated to 6 digits (microseconds, no rounding), then added to the running absolute time (`prev + interval`).
+- **Duration** of a cast equals the last event's cumulative time — which is why a trailing no-op output event extends playback.
 
 ## Compatibility
 
