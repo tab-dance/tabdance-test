@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 )
 
@@ -27,9 +26,11 @@ func (d *Daemon) handleMarker(req Request) Response {
 	return SuccessResponse("marker added")
 }
 
-// handleAttach streams the terminal's raw PTY output to the connection.
-// It is transport-specific (raw byte streaming) and stays at the terminal
-// level: the subscriber broadcasts exactly the bytes the child produces.
+// handleAttach streams the terminal to the connection so the client ends
+// up with the screen as it stands now: the current screen is rendered as
+// VT bytes first, then live PTY output follows. It is transport-specific
+// (raw byte streaming) and stays at the terminal level: the subscriber
+// broadcasts exactly the bytes the child produces.
 func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 	id := req.GetString("id")
 
@@ -43,14 +44,16 @@ func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 		return
 	}
 
-	sub := mt.Subscribe()
-	defer func() {
-		if dropped := sub.Dropped(); dropped > 0 {
-			fmt.Fprintf(conn, "\n[[tt: %d bytes of output dropped during attach]]\n", dropped)
-		}
-		mt.Unsubscribe(sub)
-	}()
+	sub, snapshot, err := mt.SubscribeWithSnapshot()
+	if err != nil {
+		json.NewEncoder(conn).Encode(ErrorResponse(err.Error()))
+		return
+	}
+	defer mt.Unsubscribe(sub)
 
+	if _, err := conn.Write(snapshot); err != nil {
+		return
+	}
 	for data := range sub.Channel() {
 		if _, err := conn.Write(data); err != nil {
 			return

@@ -108,7 +108,7 @@ tt
 │   (attach separately via `attach <id>`)
 ├── ls                           # List active terminals (--json)
 ├── inspect <id>                 # Terminal details (--json)
-├── attach <id>                  # Stream PTY output (Ctrl+C to detach)
+├── attach <id>                  # Stream PTY output (initial screen snapshot + live stream; Ctrl+C to detach)
 ├── rm <id>                      # Remove/close terminal (hidden `kill` alias kept)
 ├── view <id>                    # Print screen content (--format, --json; plain when piped, vt on a terminal)
 ├── cursor <id>                  # Print cursor state (--json)
@@ -299,8 +299,8 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Scroll mouse actions**: `scroll_up`/`scroll_down` translated to button 4/5 press+release sequences.
 - **All go-libghostty getters return `(value, error)`**: e.g., `CursorX() (uint16, error)`, `Cols() (uint16, error)`.
 - **mcp-go CallToolRequest**: Use `req.GetString()`, `req.GetInt()`, `req.GetBool()`, `req.RequireString()`, `req.RequireInt()` — NOT `req.Params.Arguments["key"]`.
-- **Output subscriber pattern**: `ManagedTerminal` broadcasts PTY output to subscribers via channels. `Subscribe()` returns an `outputSubscriber` with a `Channel()` method. Used by `attach` command to stream output without competing with `ptyReadLoop`.
-- **Daemon protocol**: JSON-RPC over Unix socket. Each request is one JSON line, each response is one JSON line. `attach` is special: after the initial request, the daemon streams raw PTY output bytes to the client connection.
+- **Output subscriber pattern**: `ManagedTerminal` broadcasts PTY output to subscribers via channels. `SubscribeWithSnapshot()` renders the current screen as VT bytes and registers an `outputSubscriber` whose `Channel()` method streams subsequent output; holding the terminal mutex across render + registration guarantees each output chunk lands in exactly one of the two, so attach never misses or duplicates data. Delivery blocks the PTY read loop when a consumer falls behind (raw chunks cannot be dropped without corrupting escape sequences, so backpressure reaches the child, like a real terminal) and chunks are copied out of the reused read buffer. Used by `attach` to show the existing screen then stream live output; `Subscribe()` (no snapshot) tail-only streaming exists too. `Unsubscribe` and `Close` terminate subscriber range loops.
+- **Daemon protocol**: JSON-RPC over Unix socket. Each request is one JSON line, each response is one JSON line. `attach` is special: after the initial request, the daemon renders the current screen as VT bytes (initial view), then streams live PTY output bytes to the client connection.
 - **CLI output format**: Human-readable by default, `--json` flag for machine-parseable output.
 - **Init-style subcommand registration**: Each subcommand file declares a package-level `*cobra.Command` var and registers it via `rootCmd.AddCommand()` in an `init()` function. No central list of subcommands in root.go.
 - **Carapace completion actions**: Defined in `pkg/actions/` (`ActionTerminalIDs`, `ActionKeyNames`). Command files import and use them directly.
