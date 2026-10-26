@@ -81,6 +81,15 @@ func (r *AsciicastRecorder) WriteResize(cols, rows int) error {
 }
 ```
 
+## Pause/Resume Capture (Hide/Show)
+
+`AsciicastRecorder.PauseRecording(paused bool)` suspends capture the way
+asciinema's `ctrl+\` mute does: while paused, all writers (output, input,
+markers, resize) drop their events and the timeline freezes; on resume the
+epoch is shifted forward past the paused wall time, so the cast contains no
+trace of the hidden interval. VHS-style tape `Hide`/`Show` verbs toggle this
+via `ManagedTerminal.PauseRecording`; they are no-ops without a recording.
+
 ## Idle Handling and the Trailing Idle Event
 
 `Close` appends one no-op output event (`[interval, "o", ""]`) at the true stop time:

@@ -17,6 +17,12 @@ type AsciicastRecorder struct {
 	// start, trimmed by idleLimit). Events carry the interval since the
 	// previously emitted event (asciicast v3).
 	elapsed float64
+	// paused suspends capture, mirroring asciinema's mute: while paused,
+	// no events are written and the timeline freezes, so the hidden
+	// interval disappears from the cast entirely. Resuming shifts the
+	// epoch forward past the paused wall time (asciinema's time_offset).
+	paused   bool
+	pausedAt time.Time
 	// mu serializes event writes: output events come from the PTY read
 	// loop, input events from WritePty callers in other goroutines.
 	mu sync.Mutex
@@ -64,33 +70,61 @@ func (r *AsciicastRecorder) intervalLocked() float64 {
 	return gap
 }
 
+// PauseRecording toggles capture (asciinema mute): while paused,
+// writers drop their events and the timeline stops advancing.
+func (r *AsciicastRecorder) PauseRecording(paused bool) {
+	r.mu.Lock()
+	if paused && !r.paused {
+		r.pausedAt = time.Now()
+	}
+	if !paused && r.paused {
+		r.start = r.start.Add(time.Since(r.pausedAt))
+	}
+	r.paused = paused
+	r.mu.Unlock()
+}
+
 func (r *AsciicastRecorder) WriteOutput(data []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.paused {
+		return nil
+	}
 	return r.enc.Encode([]any{r.intervalLocked(), "o", string(data)})
 }
 
 func (r *AsciicastRecorder) WriteInput(data []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.paused {
+		return nil
+	}
 	return r.enc.Encode([]any{r.intervalLocked(), "i", string(data)})
 }
 
 func (r *AsciicastRecorder) WriteMarker(label string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.paused {
+		return nil
+	}
 	return r.enc.Encode([]any{r.intervalLocked(), "m", label})
 }
 
 func (r *AsciicastRecorder) WriteResize(cols, rows int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.paused {
+		return nil
+	}
 	return r.enc.Encode([]any{r.intervalLocked(), "r", fmt.Sprintf("%dx%d", cols, rows)})
 }
 
 func (r *AsciicastRecorder) Close() error {
 	r.mu.Lock()
-	_ = r.enc.Encode([]any{r.intervalLocked(), "o", ""})
+	if !r.paused {
+		_ = r.enc.Encode([]any{r.intervalLocked(), "o", ""})
+	}
 	r.mu.Unlock()
 	return r.file.Close()
 }

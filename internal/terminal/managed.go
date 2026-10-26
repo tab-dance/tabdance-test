@@ -280,6 +280,15 @@ func (m *ManagedTerminal) IsRecording() bool {
 	return m.recPtr.Load() != nil
 }
 
+// PauseRecording toggles capture on the active recording, matching
+// asciinema's mute: while paused, events are dropped and the timeline
+// freezes. No-op when nothing is recording.
+func (m *ManagedTerminal) PauseRecording(paused bool) {
+	if rec := m.recPtr.Load(); rec != nil {
+		rec.PauseRecording(paused)
+	}
+}
+
 func (m *ManagedTerminal) AddMarker(label string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

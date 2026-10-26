@@ -36,6 +36,7 @@ type Terminal interface {
 	Resize(cols, rows uint16) error
 	AddMarker(label string) error
 	IsRecording() bool
+	PauseRecording(paused bool)
 	RecentOutput(n int) []byte
 	LastOutputTime() time.Time
 	ExitState() (exited bool, exitCode int, signal string)
@@ -176,12 +177,7 @@ func (e *TapeExecutor) executeCommand(cmd parser.Command) error {
 	case token.SET:
 		return e.executeSet(cmd)
 	case token.HIDE, token.SHOW:
-		if e.terminal.IsRecording() {
-			if cmd.Type == token.SHOW {
-				return e.terminal.AddMarker("show")
-			}
-			return e.terminal.AddMarker("hide")
-		}
+		e.terminal.PauseRecording(cmd.Type == token.HIDE)
 		return nil
 	case token.SCREENSHOT:
 		return e.terminal.AddMarker(fmt.Sprintf("screenshot: %s", cmd.Args))

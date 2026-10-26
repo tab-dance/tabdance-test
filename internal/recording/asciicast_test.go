@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -92,6 +93,49 @@ func TestIdleTimeLimitTrimsIntervals(t *testing.T) {
 	}
 	if second < 0.04 {
 		t.Fatalf("idle-limited interval = %v, want the full limit", second)
+	}
+}
+
+func TestPauseRecordingSuspendsCaptureAndFreezesTimeline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rec.cast")
+	r, err := NewAsciicastRecorder(path, 80, 24, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.WriteOutput([]byte("a")); err != nil {
+		t.Fatal(err)
+	}
+	r.PauseRecording(true)
+	if err := r.WriteOutput([]byte("dropped-out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.WriteInput([]byte("dropped-in")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.WriteMarker("dropped-mark"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	r.PauseRecording(false)
+	if err := r.WriteOutput([]byte("b")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, events := readCast(t, path)
+	for _, ev := range events {
+		data, _ := ev[2].(string)
+		if strings.Contains(data, "dropped") {
+			t.Fatalf("paused section leaked into the cast: %v", ev)
+		}
+	}
+	// The interval after Resume must reflect the frozen timeline, not the
+	// 150ms of real time spent paused.
+	intro, _ := events[1][0].(float64)
+	if intro > 0.1 {
+		t.Fatalf("interval across the pause = %v, want it frozen (<0.1s)", intro)
 	}
 }
 
