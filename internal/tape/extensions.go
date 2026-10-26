@@ -255,7 +255,15 @@ func (e *TapeExecutor) executeExtension(ext extension, defaultTimeout time.Durat
 		}
 		return e.waitStable(quiet)
 	case extExpect:
-		return e.expect(ext.pattern, ext.scope)
+		if err := e.expect(ext.pattern, ext.scope); err != nil {
+			return err
+		}
+		scopeLabel := "Screen"
+		if strings.EqualFold(ext.scope, "line") {
+			scopeLabel = "Line"
+		}
+		e.checkpoint(fmt.Sprintf("Expect /%s/ +%s", ext.pattern, scopeLabel))
+		return nil
 	case extWaitPrompt:
 		return e.waitPrompt(timeout)
 	case extWaitCommand:

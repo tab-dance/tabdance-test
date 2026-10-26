@@ -92,6 +92,12 @@ func UpdateGolden(terminal *libghostty.Terminal, goldenPath string, format strin
 	return nil
 }
 
+// Capture renders the current terminal content with the given formatter
+// style — the primitive behind golden sections and single-screen verify.
+func Capture(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {
+	return getTerminalContent(terminal, format, trim, unwrap)
+}
+
 func getTerminalContent(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {
 	switch format {
 	case "json":

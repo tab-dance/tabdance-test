@@ -26,6 +26,9 @@ type TapeExecutor struct {
 	typingSpeed time.Duration
 	depth       int
 	dir         string // directory of the tape currently being executed
+	// checkpoints, when set, records a golden section after every
+	// successful anchor (Expect asserts, Wait+Screen waits).
+	checkpoints func(label string)
 }
 
 type Terminal interface {
@@ -58,6 +61,18 @@ func NewTapeExecutor(terminal Terminal, timeout time.Duration) *TapeExecutor {
 
 func (e *TapeExecutor) SetTypingSpeed(d time.Duration) {
 	e.typingSpeed = d
+}
+
+// SetCheckpoints registers a callback invoked after every successful
+// anchor with a human label naming the anchor (e.g. `Wait+Screen /re/`).
+func (e *TapeExecutor) SetCheckpoints(fn func(label string)) {
+	e.checkpoints = fn
+}
+
+func (e *TapeExecutor) checkpoint(label string) {
+	if e.checkpoints != nil {
+		e.checkpoints(label)
+	}
 }
 
 func (e *TapeExecutor) Execute(tapePath string) error {

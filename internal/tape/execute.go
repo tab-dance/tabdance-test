@@ -167,7 +167,7 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 	scope := parts[0]
 	pattern := ""
 	if len(parts) > 1 {
-		pattern = parts[1]
+		pattern = strings.Join(parts[1:], " ")
 	}
 
 	timeout := e.timeout
@@ -191,5 +191,10 @@ func (e *TapeExecutor) executeWait(cmd parser.Command) error {
 	if !result.Found {
 		return fmt.Errorf("wait timeout: pattern %q not found within %v", pattern, timeout)
 	}
+	scopeLabel := "Screen"
+	if strings.EqualFold(scope, "line") {
+		scopeLabel = "Line"
+	}
+	e.checkpoint(fmt.Sprintf("Wait+%s /%s/", scopeLabel, pattern))
 	return nil
 }
