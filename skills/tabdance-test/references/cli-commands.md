@@ -25,7 +25,7 @@ tabdance-test exposes a Cobra CLI with carapace shell completions. All commands 
 | `inspect` | `tt inspect <id>` | Terminal details (size, command, recording, child exit status) |
 | `output` | `tt output <id> [bytes]` | Print recent raw PTY output (diagnostics) |
 | `doctor` | `tt doctor` | Environment preflight checks (spawns nothing) |
-| `attach` | `tt attach <id>` | Stream PTY output (Ctrl+C to detach) |
+| `attach` | `tt attach <id>` | Stream raw PTY output from attach time, tail semantics (Ctrl+C to detach); for watching a screen use `view <id> --follow` |
 | `kill` | `tt kill <id>` | Hidden alias for `rm` (deprecated) |
 | `rm` | `tt rm <id>` | Remove/close terminal |
 
@@ -56,6 +56,7 @@ All inspection commands support `--json` for machine-parseable output.
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--format` | plain | Output format: plain, vt, html |
+| `--follow` | false | Watch the screen live: daemon re-renders complete frames (modes, style, cursor) on a 50ms debounce; Ctrl+C detaches. Garble-free by construction, safe for mid-session attach |
 | `--trim` | true | Trim trailing whitespace |
 | `--unwrap` | true | Unwrap soft-wrapped lines |
 | `--json` | false | Output as JSON |

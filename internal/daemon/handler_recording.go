@@ -26,11 +26,12 @@ func (d *Daemon) handleMarker(req Request) Response {
 	return SuccessResponse("marker added")
 }
 
-// handleAttach streams the terminal to the connection so the client ends
-// up with the screen as it stands now: the current screen is rendered as
-// VT bytes first, then live PTY output follows. It is transport-specific
-// (raw byte streaming) and stays at the terminal level: the subscriber
-// broadcasts exactly the bytes the child produces.
+// handleAttach streams the terminal's live raw PTY output to the
+// connection (tail semantics: bytes produced from attach on). It is
+// transport-specific (raw byte streaming) and stays at the terminal
+// level: the subscriber broadcasts exactly the bytes the child produces.
+// Watching a screen is view --follow instead, which renders complete
+// frames rather than trusting the consumer to be in byte-lockstep.
 func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 	id := req.GetString("id")
 
@@ -44,16 +45,9 @@ func (d *Daemon) handleAttach(req Request, conn net.Conn) {
 		return
 	}
 
-	sub, snapshot, err := mt.SubscribeWithSnapshot()
-	if err != nil {
-		json.NewEncoder(conn).Encode(ErrorResponse(err.Error()))
-		return
-	}
+	sub := mt.Subscribe()
 	defer mt.Unsubscribe(sub)
 
-	if _, err := conn.Write(snapshot); err != nil {
-		return
-	}
 	for data := range sub.Channel() {
 		if _, err := conn.Write(data); err != nil {
 			return

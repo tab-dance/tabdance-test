@@ -105,12 +105,13 @@ tt
 ├── exec <command>               # Create terminal, print ID
 │   --cols / --rows / --scrollback / --env / --working-directory / --term
 │   --record <path>
-│   (attach separately via `attach <id>`)
+│   (attach separately via `attach <id>`; watch via `view <id> --follow`)
 ├── ls                           # List active terminals (--json)
 ├── inspect <id>                 # Terminal details (--json)
-├── attach <id>                  # Stream PTY output (initial screen snapshot + live stream; Ctrl+C to detach)
+├── attach <id>                  # Stream raw PTY output from attach time (tail semantics; Ctrl+C to detach)
 ├── rm <id>                      # Remove/close terminal (hidden `kill` alias kept)
 ├── view <id>                    # Print screen content (--format, --json; plain when piped, vt on a terminal)
+│                                # --follow streams re-rendered complete frames (watching; Ctrl+C to detach)
 ├── cursor <id>                  # Print cursor state (--json)
 ├── size <id>                    # Print dimensions (--json)
 ├── cell <id> <x> <y>           # Inspect cell (--json)
@@ -196,6 +197,7 @@ internal/
     handler_tape.go          # Daemon handlers: resize(input.go), tape, wait
     handler_golden.go        # Daemon handlers: verify, snapshot
     handler_recording.go     # Daemon handlers: record, stop, marker, attach, output
+    handler_follow.go        # Daemon handler: follow (rendered frame streaming)
   client/
     client.go                # Client struct, connect, Call
     daemon.go                # Auto-start logic: EnsureDaemon, IsDaemonRunning
@@ -299,8 +301,8 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Scroll mouse actions**: `scroll_up`/`scroll_down` translated to button 4/5 press+release sequences.
 - **All go-libghostty getters return `(value, error)`**: e.g., `CursorX() (uint16, error)`, `Cols() (uint16, error)`.
 - **mcp-go CallToolRequest**: Use `req.GetString()`, `req.GetInt()`, `req.GetBool()`, `req.RequireString()`, `req.RequireInt()` — NOT `req.Params.Arguments["key"]`.
-- **Output subscriber pattern**: `ManagedTerminal` broadcasts PTY output to subscribers via channels. `SubscribeWithSnapshot()` renders the current screen as VT bytes — with the formatter's extra state emission (modes incl. alternate screen, cursor visibility, mouse tracking, bracketed paste; SGR style; cursor position; keyboard modes; scroll region, tabstops) which the library orders as mode sequences, then content, then cursor CUP — so a consumer with no prior context gets a full sync packet before the delta stream; holding the terminal mutex across render + registration guarantees each output chunk lands in exactly one of the two, so attach never misses or duplicates data. Delivery blocks the PTY read loop when a consumer falls behind (raw chunks cannot be dropped without corrupting escape sequences, so backpressure reaches the child, like a real terminal) and chunks are copied out of the reused read buffer. Used by `attach` to show the existing screen then stream live output; `Subscribe()` (no snapshot) tail-only streaming exists too. `Unsubscribe` and `Close` terminate subscriber range loops.
-- **Daemon protocol**: JSON-RPC over Unix socket. Each request is one JSON line, each response is one JSON line. `attach` is special: after the initial request, the daemon renders the current screen as VT bytes (initial view), then streams live PTY output bytes to the client connection.
+- **Output subscriber pattern**: `ManagedTerminal` broadcasts PTY output to subscribers via channels. `Subscribe()` returns an `outputSubscriber` whose `Channel()` streams child bytes; registration under the terminal mutex keeps attach streams gapless, delivery blocks under backpressure (raw chunks cannot be dropped without corrupting escape sequences), chunks are copied out of the reused read buffer, and `Unsubscribe`/`Close` terminate the consumer's range loop. Two consumers build on it: `attach` streams raw PTY bytes (tail semantics, for diagnostics and piping), `view --follow` re-renders complete screen frames on a 50ms debounce (stateful watching that never garbles, see follow frame protocol).
+- **Daemon protocol**: JSON-RPC over Unix socket. Each request is one JSON line, each response is one JSON line. `attach` and `follow` are special: after the initial request the daemon streams bytes to the client connection — `attach` raw PTY output, `follow` one JSON response per rendered screen frame. Frames are wrapped in synchronized updates (CSI 2026), erased before paint, and carry mode/style/cursor state from the formatter's extra emission, so every frame is a full-state repaint. Alternate-screen transitions between frames are handled by `inspect.FrameState` (the renderer mirrors only enabled modes, so the primary-following-altscreen frame prepends `?1049l` itself).
 - **CLI output format**: Human-readable by default, `--json` flag for machine-parseable output.
 - **Init-style subcommand registration**: Each subcommand file declares a package-level `*cobra.Command` var and registers it via `rootCmd.AddCommand()` in an `init()` function. No central list of subcommands in root.go.
 - **Carapace completion actions**: Defined in `pkg/actions/` (`ActionTerminalIDs`, `ActionKeyNames`). Command files import and use them directly.
