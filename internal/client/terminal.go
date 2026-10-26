@@ -40,9 +40,14 @@ func (c *Client) Exec(command string, cols, rows, scrollback int, env map[string
 	return id, nil
 }
 
-func (c *Client) Ls(all bool) ([]terminal.TerminalInfo, error) {
-	params := map[string]any{"project": daemon.SessionKey()}
-	if all {
+// Ls lists terminals. Mine scopes to this shell's project (agent-safe
+// default for prompts like "the terminal you started"); the default lists
+// every project on the shared daemon, tagged with the creating project.
+func (c *Client) Ls(mine bool) ([]terminal.TerminalInfo, error) {
+	params := map[string]any{
+		"project": daemon.SessionKey(),
+	}
+	if !mine {
 		params["all"] = true
 	}
 	resp, err := c.Call("ls", params)
