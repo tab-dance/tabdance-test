@@ -3,6 +3,7 @@ package tape
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,6 +113,42 @@ Enter`,
 				t.Errorf("WaitTimeout = %v, want %v", settings.WaitTimeout, tt.settings.WaitTimeout)
 			}
 		})
+	}
+}
+
+func TestHideShowWithoutRecordingIsNoop(t *testing.T) {
+	mt := newExecTerminal(t, "hide-norec", "")
+	path := writeTape(t, "Hide\nShow\n")
+	if err := NewTapeExecutor(mt, time.Second).Execute(path); err != nil {
+		t.Fatalf("Hide/Show without recording should be no-ops, got: %v", err)
+	}
+	if mt.IsRecording() {
+		t.Fatal("terminal unexpectedly recording")
+	}
+}
+
+func TestHideShowWhileRecording(t *testing.T) {
+	mt := newExecTerminal(t, "hide-rec", "")
+	cast := filepath.Join(t.TempDir(), "rec.cast")
+	if err := mt.StartRecording(cast, 1.0); err != nil {
+		t.Fatalf("start recording: %v", err)
+	}
+	path := writeTape(t, "Hide\nShow\n")
+	if err := NewTapeExecutor(mt, time.Second).Execute(path); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if err := mt.StopRecording(); err != nil {
+		t.Fatalf("stop recording: %v", err)
+	}
+	data, err := os.ReadFile(cast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{`,"m","hide"`, `,"m","show"`} {
+		if !strings.Contains(content, want) {
+			t.Errorf("cast file missing %s:\n%s", want, content)
+		}
 	}
 }
 

@@ -64,8 +64,8 @@ Both OSC verbs snapshot the marker counter when they run: one sync point per com
 | `Set WaitTimeout` | Updates default timeout for subsequent `Wait` commands |
 | `Set FontSize/FontFamily/Theme/Framerate/PlaybackSpeed` | No-op (headless) |
 | `Screenshot path` | `AddMarker("screenshot: path")` |
-| `Hide` | `AddMarker("hide")` |
-| `Show` | `AddMarker("show")` |
+| `Hide` | `AddMarker("hide")` when recording; silent no-op otherwise |
+| `Show` | `AddMarker("show")` when recording; silent no-op otherwise |
 | `Output/Require` | No-op |
 | `Copy/Paste` | No-op |
 | `Env KEY VALUE` | No-op (env set before process start only) |
