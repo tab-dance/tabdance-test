@@ -156,20 +156,14 @@ func (s *Service) RunTape(o RunTapeOptions) (*RunTapeOutcome, error) {
 	out.Verified = true
 	out.Updated = o.Update
 
-	// Final section: end-of-tape screen state.
-	mt.Lock()
-	finalContent, err := golden.Capture(mt.Terminal, "plain", true, true)
-	mt.Unlock()
-	if err != nil {
-		return out, err
-	}
-	sections = append(sections, section{label: "final", content: finalContent})
-
 	labels := make([]string, len(sections))
 	contents := make([]string, len(sections))
 	for i, sec := range sections {
 		labels[i] = sec.label
 		contents[i] = sec.content
+	}
+	if len(labels) == 0 {
+		return out, fmt.Errorf("FAIL: no checkpoint anchors (Wait/Expect) in tape; golden requires at least one")
 	}
 
 	if o.Update {
