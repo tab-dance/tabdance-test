@@ -90,7 +90,7 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 ## Cross-Project References
 
 - For go-libghostty API details (Terminal, KeyEncoder, MouseEncoder, Formatter, RenderState, GridRef, Selection, etc.), use the **ghostty** skill.
-- For asciicast v2 format specification and asciinema CLI, use the **asciinema** skill.
+- For asciicast v3 format specification and asciinema CLI, use the **asciinema** skill.
 - For VHS tape DSL, parsing, and recording, use the **vhs** skill.
 - For Bubble Tea framework internals (Model/Update/View, commands, messages, renderer, testing, composition), use the **bubbletea** skill.
 - For tabdance application internals (select command, provider system, shell integration, UI model), use the **tabdance** skill.

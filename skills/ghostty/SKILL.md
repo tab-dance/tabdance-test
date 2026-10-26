@@ -42,7 +42,7 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 | shell-integration, shell-integration-features, cursor, sudo, title, ssh-env, ssh-terminfo, path, OSC 133, semantic prompt, prompt detection, command output | [references/shell-integration.md](references/shell-integration.md) |
 | ghostty IPC, +new-window, D-Bus, Unix domain socket, gtk-single-instance, systemd, +list-actions, +show-config, +validate-config, +list-themes, +list-fonts, +list-keybinds, CLI actions, apprt, runtime, Surface, App, mailbox, action dispatch | [references/ipc-cli.md](references/ipc-cli.md) |
 | ghostty.h, embedding API, ghostty_app_t, ghostty_surface_t, ghostty_config_t, ghostty_inspector_t, apprt, none.zig, GTK, macOS, SwiftUI, Metal, ImGui, dcimgui, inspector widgets, platform view | [references/embedding.md](references/embedding.md) |
-| asciicast v2, .cast, JSON Lines, header, event stream, output, input, marker, resize, timing, theme, VHS, tape, .tape, DSL, Type, Sleep, Wait, Ctrl, Alt, Screenshot, golden file, integration test, ttyd, go-rod, ffmpeg | [references/recording-testing.md](references/recording-testing.md) |
+| asciicast v3, .cast, JSON Lines, header, event stream, output, input, marker, resize, timing, theme, VHS, tape, .tape, DSL, Type, Sleep, Wait, Ctrl, Alt, Screenshot, golden file, integration test, ttyd, go-rod, ffmpeg | [references/recording-testing.md](references/recording-testing.md) |
 | concurrency, thread safety, borrowed view, copied value, cgo.Handle, trampoline, Alloc, Free, static linking, dynamic linking, cross-compilation, Zig C compiler, pkg-config, build tags, SIMD, WASM | [references/cgo-build.md](references/cgo-build.md) |
 
 ## Quick Guide
@@ -72,6 +72,6 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 - For Bubble Tea framework internals (Model/Update/View, commands, messages, renderer, testing, composition), use the **bubbletea** skill.
 - For carapace library internals (Action API, traverse engine, shell formatters, style system, export format, UID system), use the **carapace-dev** skill.
 - For carapace user-facing topics (integrating into CLIs, writing specs, macros, setup, choices), use the **carapace** skill.
-- For asciinema/asciicast v2 format and CLI, use the **asciinema** skill.
+- For asciinema/asciicast v3 format and CLI, use the **asciinema** skill.
 - For VHS tape DSL, parsing, and recording, use the **vhs** skill.
 - For in-depth shell-specific knowledge (bash, zsh, fish, elvish, nushell, powershell, xonsh, oil, tcsh), use the corresponding shell skill.

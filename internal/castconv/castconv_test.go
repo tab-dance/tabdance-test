@@ -1,6 +1,7 @@
 package castconv
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -15,25 +16,47 @@ func writeCast(t *testing.T, content string) string {
 	return path
 }
 
+func v3Header(cols, rows int) string {
+	return fmt.Sprintf(`{"version": 3, "term": {"cols": %d, "rows": %d, "type": "xterm-ghostty"}}
+`, cols, rows)
+}
+
 func TestParseBasicEvents(t *testing.T) {
-	path := writeCast(t, `{"version": 2, "width": 80, "height": 24}
-[0.1, "o", "hello\r\n"]
-[0.2, "i", "echo hi\r"]
-[1.0, "m", "after"]
-[2.0, "r", "100x25"]
+	path := writeCast(t, v3Header(80, 24)+`[0.1, "o", "hello\r\n"]
+[0.1, "i", "echo hi\r"]
+[0.8, "m", "after"]
+[1.0, "r", "100x25"]
+[0.0, "x", "0"]
 `)
 	cast, err := Parse(path)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if len(cast.Events) != 4 {
-		t.Fatalf("expected 4 events, got %d", len(cast.Events))
+	if len(cast.Events) != 5 {
+		t.Fatalf("expected 5 events, got %d", len(cast.Events))
 	}
 	if cast.Width != 80 || cast.Height != 24 {
 		t.Fatalf("header mismatch: %dx%d", cast.Width, cast.Height)
 	}
-	if cast.Events[1].Kind != "i" || cast.Events[1].Data != "echo hi\r" {
-		t.Fatalf("input event lost: %+v", cast.Events[1])
+	// intervals become absolute times: 0.1, 0.2, 1.0, 2.0, 2.0
+	want := []float64{0.1, 0.2, 1.0, 2.0, 2.0}
+	for i, w := range want {
+		if cast.Events[i].Time != w {
+			t.Errorf("event %d time = %v, want %v", i, cast.Events[i].Time, w)
+		}
+	}
+	if cast.Events[4].Kind != "x" || cast.Events[4].Data != "0" {
+		t.Fatalf("exit event lost: %+v", cast.Events[4])
+	}
+}
+
+func TestParseRejectsV2Cast(t *testing.T) {
+	path := writeCast(t, `{"version": 2, "width": 80, "height": 24}
+[0.1, "o", "hello"]
+`)
+	_, err := Parse(path)
+	if err == nil || !strings.Contains(err.Error(), "version 2") {
+		t.Fatalf("expected unsupported-version error, got %v", err)
 	}
 }
 
@@ -71,12 +94,15 @@ func TestDecodeInput(t *testing.T) {
 }
 
 func TestToTapeCast(t *testing.T) {
-	header := `{"version": 2, "width": 90, "height": 30}
+	header := v3Header(90, 30)
+	file := header + `# recorded by tt
 [0.1, "i", "echo one\r"]
-[0.4, "o", "one\r\n"]
-[0.9, "m", "setup done"]
+[0.3, "o", "one\r\n"]
+[0.5, "m", "setup done"]
+[0.1, "x", "0"]
+[0.1, "i", "\u001b[C"]
+[0.1, "r", "100x25"]
 `
-	file := header + "\n[1.0, \"i\", \"\\u001b[C\"]\n[1.1, \"r\", \"100x25\"]\n"
 	path := t.TempDir() + "/rec.cast"
 	if err := os.WriteFile(path, []byte(file), 0644); err != nil {
 		t.Fatal(err)
@@ -106,15 +132,16 @@ func TestOscInputIgnored(t *testing.T) {
 }
 
 func TestTypingSpeedFromRecordingTiming(t *testing.T) {
-	header := `{"version": 2, "width": 80, "height": 24}
+	header := v3Header(80, 24)
+	events := `# recorded by tt
 [0.0, "i", "a"]
 [0.1, "i", "b"]
-[0.2, "i", "c"]
-[0.3, "i", "d"]
-[0.4, "i", "e"]
-[0.5, "i", "\r"]
+[0.1, "i", "c"]
+[0.1, "i", "d"]
+[0.1, "i", "e"]
+[0.1, "i", "\r"]
 `
-	path := writeCast(t, header)
+	path := writeCast(t, header+events)
 	cast, err := Parse(path)
 	if err != nil {
 		t.Fatal(err)
@@ -124,8 +151,7 @@ func TestTypingSpeedFromRecordingTiming(t *testing.T) {
 		t.Fatalf("expected 100ms typing speed from ~100ms gaps:\n%s", tape)
 	}
 
-	single := writeCast(t, `{"version": 2, "width": 80, "height": 24}
-[0.0, "i", "a"]
+	single := writeCast(t, v3Header(80, 24)+`[0.0, "i", "a"]
 `)
 	cast, err = Parse(single)
 	if err != nil {

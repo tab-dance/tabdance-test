@@ -236,7 +236,7 @@ internal/
     cursor.go                # GetCursor: x, y, visible, pending_wrap, style
     size.go                  # GetSize: cols, rows, width_px, height_px
   recording/
-    asciicast.go             # AsciicastRecorder: asciicast v2 .cast files (output/input/marker/resize)
+    asciicast.go             # AsciicastRecorder: asciicast v3 .cast files (output/input/marker/resize)
   tape/
     executor.go              # TapeExecutor struct, Execute, executeCommand, executeSet
     execute.go               # Tape execution: executeType, sendKeys, executeCtrl/Alt/Shift, executeSleep, executeWait
@@ -383,7 +383,7 @@ Unit tests cover: terminal manager (unique IDs, delete semantics, name-list dedu
 ## Cross-Project Skills
 
 - **ghostty** skill — go-libghostty API details (Terminal, KeyEncoder, MouseEncoder, Formatter, GridRef, etc.)
-- **asciinema** skill — asciicast v2 format specification
+- **asciinema** skill — asciicast v3 format specification
 - **vhs** skill — VHS tape DSL and parsing
 - **bubbletea** skill — Bubble Tea framework internals
 - **tabdance** skill — tabdance application internals

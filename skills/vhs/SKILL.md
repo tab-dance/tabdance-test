@@ -40,7 +40,7 @@ Load the reference that matches your task. When in doubt, load multiple referenc
 
 ## Cross-Project References
 
-- For asciinema/asciicast v2 format, use the **asciinema** skill.
+- For asciinema/asciicast v3 format, use the **asciinema** skill.
 - For Ghostty/libghostty headless terminal testing, use the **ghostty** skill.
 - For the tabdance-test MCP server (headless terminal testing), use the **tabdance-test** skill.
 - For Bubble Tea framework internals, use the **bubbletea** skill.

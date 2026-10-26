@@ -1,8 +1,9 @@
-// Package castconv converts asciicast v2 recordings into deterministic
+// Package castconv converts asciicast v3 recordings into deterministic
 // tabdance-test tapes. Input events ("i") become Type/Key/Ctrl/Raw tape
-// lines, resize events become Resize, markers become comments, and
-// WaitStable lines anchor each input cluster so replay waits for output
-// to settle instead of sleeping for fixed durations.
+// lines, resize events become Resize, markers and exit-status events
+// become comments, and WaitStable lines anchor each input cluster so
+// replay waits for output to settle instead of sleeping for fixed
+// durations.
 package castconv
 
 import (
@@ -20,7 +21,7 @@ import (
 
 type Event struct {
 	Time float64
-	Kind string // "o", "i", "m", "r"
+	Kind string // "o", "i", "m", "r", "x"
 	Data string
 }
 
@@ -29,7 +30,9 @@ type Cast struct {
 	Events        []Event
 }
 
-// Parse reads a cast file (JSON-lines: header first, then events).
+// Parse reads a cast file (JSON Lines: asciicast v3 header first, then
+// interval-timed events; "#" comment lines are ignored). Event times are
+// converted to absolute seconds since the recording start.
 func Parse(path string) (*Cast, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -41,34 +44,53 @@ func Parse(path string) (*Cast, error) {
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	lineNo := 0
+	headerSeen := false
+	abs := 0.0
 	for sc.Scan() {
 		lineNo++
 		line := sc.Bytes()
 		if len(line) == 0 {
 			continue
 		}
-		if line[0] == '{' && c.Events == nil {
+		if line[0] == '#' {
+			continue
+		}
+		if !headerSeen {
+			if line[0] != '{' {
+				return nil, fmt.Errorf("cast line %d: expected header, got %q", lineNo, line)
+			}
 			var header struct {
-				Width  int `json:"width"`
-				Height int `json:"height"`
+				Version int `json:"version"`
+				Term    struct {
+					Cols int `json:"cols"`
+					Rows int `json:"rows"`
+				} `json:"term"`
 			}
 			if err := json.Unmarshal(line, &header); err != nil {
 				return nil, fmt.Errorf("cast header line %d: %w", lineNo, err)
 			}
-			c.Width, c.Height = header.Width, header.Height
+			if header.Version != 3 {
+				return nil, fmt.Errorf("cast header line %d: unsupported asciicast version %d (this tool reads version 3 only)", lineNo, header.Version)
+			}
+			c.Width, c.Height = header.Term.Cols, header.Term.Rows
+			headerSeen = true
 			continue
 		}
 		var ev []any
 		if err := json.Unmarshal(line, &ev); err != nil || len(ev) < 3 {
 			return nil, fmt.Errorf("cast event line %d: malformed", lineNo)
 		}
-		ts, _ := ev[0].(float64)
+		interval, _ := ev[0].(float64)
 		kind, _ := ev[1].(string)
 		data, _ := ev[2].(string)
-		c.Events = append(c.Events, Event{Time: ts, Kind: kind, Data: data})
+		abs += interval
+		c.Events = append(c.Events, Event{Time: abs, Kind: kind, Data: data})
 	}
 	if err := sc.Err(); err != nil {
 		return nil, err
+	}
+	if !headerSeen {
+		return nil, fmt.Errorf("cast has no asciicast header")
 	}
 	if c.Width == 0 {
 		c.Width, c.Height = 80, 24
@@ -122,6 +144,13 @@ func (c *Cast) ToTapeCast() string {
 				flushInput()
 			}
 			out = append(out, fmt.Sprintf("# marker: %s", ev.Data))
+		case "x":
+			// exit status from the recorded session; replay shells stay
+			// alive, so this becomes a comment instead of ExpectExit
+			if len(pendingInput) > 0 {
+				flushInput()
+			}
+			out = append(out, fmt.Sprintf("# exit status: %s", ev.Data))
 		case "r":
 			if cols, rows, ok := parseResize(ev.Data); ok {
 				if len(pendingInput) > 0 {
