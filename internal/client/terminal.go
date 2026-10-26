@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/tab-dance/tabdance-test/internal/daemon"
 	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
@@ -14,6 +15,7 @@ func (c *Client) Exec(command string, cols, rows, scrollback int, env map[string
 		"rows":              rows,
 		"scrollback":        scrollback,
 		"working_directory": workingDir,
+		"project":           daemon.SessionKey(),
 	}
 	if env != nil {
 		params["env"] = env
@@ -38,8 +40,12 @@ func (c *Client) Exec(command string, cols, rows, scrollback int, env map[string
 	return id, nil
 }
 
-func (c *Client) Ls() ([]terminal.TerminalInfo, error) {
-	resp, err := c.Call("ls", nil)
+func (c *Client) Ls(all bool) ([]terminal.TerminalInfo, error) {
+	params := map[string]any{"project": daemon.SessionKey()}
+	if all {
+		params["all"] = true
+	}
+	resp, err := c.Call("ls", params)
 	if err != nil {
 		return nil, err
 	}

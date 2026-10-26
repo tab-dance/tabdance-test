@@ -31,8 +31,18 @@ func (s *Service) Exec(cfg terminal.CreateConfig, recordPath string, idleTimeLim
 	return &CreateResult{TerminalID: mt.ID, Cols: mt.Cols, Rows: mt.Rows}, nil
 }
 
-func (s *Service) List() []terminal.TerminalInfo {
-	return s.terminals.List()
+func (s *Service) List(project string, all bool) []terminal.TerminalInfo {
+	infos := s.terminals.List()
+	if all || project == "" {
+		return infos
+	}
+	filtered := make([]terminal.TerminalInfo, 0, len(infos))
+	for _, info := range infos {
+		if info.Project == project {
+			filtered = append(filtered, info)
+		}
+	}
+	return filtered
 }
 
 // InspectResult describes a terminal, including child exit status when

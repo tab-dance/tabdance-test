@@ -40,23 +40,24 @@ type Daemon struct {
 	lastActive time.Time
 }
 
-// socketDir returns per-session socket directory. Terminals of unrelated
-// projects sharing one daemon would bleed into each other's list, wait, and
-// completion results, so the path is namespaced by the current project root
-// (git repository top or working directory). TABDANCE_TEST_SOCK overrides
-// the resolved path entirely.
+// socketDir returns the global socket directory, one shared daemon for all
+// projects. Terminals carry a per-project tag instead (SessionKey of the
+// creating shell), so lists and completion stay scoped while every
+// directory can still find and address the same background service.
+// TABDANCE_TEST_SOCK overrides the directory entirely.
 func socketDir() string {
 	if dir := os.Getenv("TABDANCE_TEST_SOCK"); dir != "" {
 		return dir
 	}
 	home, _ := os.UserHomeDir()
-	base := filepath.Join(home, ".local", "share", defaultSocketDir)
-	return filepath.Join(base, sessionKey())
+	return filepath.Join(home, ".local", "share", defaultSocketDir)
 }
 
-// sessionKey namespaces the socket by git repo root (falling back to the
-// working directory), so nested project directories share one daemon.
-func sessionKey() string {
+// SessionKey namespaces terminals by the creating project (git repo root
+// falling back to the working directory of the calling shell). Used as a
+// terminal tag at creation time and as the ls scope; nested project
+// directories hash to the same key.
+func SessionKey() string {
 	start, err := os.Getwd()
 	if err != nil {
 		return "orphan"
@@ -84,7 +85,6 @@ func SocketPath() string {
 func PIDPath() string {
 	return filepath.Join(socketDir(), defaultPIDFileName)
 }
-
 func New() *Daemon {
 	manager := terminal.NewTerminalManager()
 	dir := socketDir()
@@ -106,6 +106,12 @@ func idleTimeout() time.Duration {
 	}
 	return defaultIdleTimeout
 }
+
+// idleExitEnabled reports whether the daemon should exit when idle. A
+// non-positive TABDANCE_TEST_IDLE_TIMEOUT (e.g. 0) disables the exit:
+// the daemon stays up until shut down by signal, at the cost of keeping
+// processes and any PTY children alive until shells remove them.
+func (d *Daemon) idleExitEnabled() bool { return d.idleTimeout > 0 }
 
 func (d *Daemon) Run() error {
 	dir := filepath.Dir(d.socketPath)
@@ -192,6 +198,9 @@ func (d *Daemon) idleWatch() {
 		case <-d.done:
 			return
 		case <-ticker.C:
+			if !d.idleExitEnabled() {
+				continue
+			}
 			d.mu.Lock()
 			count := len(d.manager.List())
 			clients := d.clients

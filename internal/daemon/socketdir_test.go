@@ -18,9 +18,9 @@ func TestSessionKeyBindsToGitRoot(t *testing.T) {
 	}
 
 	changeDir(t, dir)
-	rootKey := sessionKey()
+	rootKey := SessionKey()
 	changeDir(t, sub)
-	nestedKey := sessionKey()
+	nestedKey := SessionKey()
 
 	if rootKey != nestedKey {
 		t.Fatalf("nested dir should share the repo-root daemon key: %q vs %q", rootKey, nestedKey)
@@ -28,18 +28,33 @@ func TestSessionKeyBindsToGitRoot(t *testing.T) {
 
 }
 
-func TestSessionKeyDistinctForSeparatePaths(t *testing.T) {
+func TestSessionKeysDistinctForSeparatePaths(t *testing.T) {
 	a := t.TempDir()
 	b := t.TempDir()
 	changeDir(t, a)
-	ka := sessionKey()
+	ka := SessionKey()
 	changeDir(t, b)
-	kb := sessionKey()
+	kb := SessionKey()
 	if ka == kb && a != b {
 		t.Fatalf("distinct roots must get distinct daemon sockets: %q == %q", ka, kb)
 	}
 	if len(ka) != 12 || len(kb) != 12 || strings.ContainsAny(ka, "/") {
 		t.Fatalf("unexpected key format: %q", ka)
+	}
+}
+
+// TestSocketPathIsGlobal pins the single-daemon model: the socket lives in
+// one shared directory; project scoping happens via terminal tags and ls
+// filtering, not via separate sockets.
+func TestSocketPathIsGlobal(t *testing.T) {
+	path := SocketPath()
+	if name := filepath.Base(path); name != "daemon.sock" {
+		t.Fatalf("unexpected socket file name: %q", name)
+	}
+	dir := filepath.Dir(path)
+	base := filepath.Base(dir)
+	if strings.ContainsAny(base, "0123456789abcdef") && len(base) == 12 {
+		t.Fatalf("socket dir must not be project-keyed anymore: %q", dir)
 	}
 }
 

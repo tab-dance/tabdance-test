@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/tab-dance/tabdance-test/internal/daemon"
 	"github.com/tab-dance/tabdance-test/internal/terminal"
 )
 
@@ -20,6 +21,10 @@ func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest
 		Scrollback:       uint(req.GetInt("scrollback", 10000)),
 		Command:          req.GetString("command", ""),
 		WorkingDirectory: req.GetString("working_directory", ""),
+		ProjectKey:       req.GetString("project_key", ""),
+	}
+	if cfg.ProjectKey == "" {
+		cfg.ProjectKey = daemon.SessionKey()
 	}
 
 	if v, ok := req.GetArguments()["env"]; ok {
@@ -43,8 +48,9 @@ func (s *Server) handleCreateTerminal(_ context.Context, req mcp.CallToolRequest
 	return mcp.NewToolResultText(string(data)), nil
 }
 
-func (s *Server) handleListTerminals(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	data, _ := json.Marshal(map[string]any{"terminals": s.svc.List()})
+func (s *Server) handleListTerminals(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	project := req.GetString("project_key", "")
+	data, _ := json.Marshal(map[string]any{"terminals": s.svc.List(project, project == "")})
 	return mcp.NewToolResultText(string(data)), nil
 }
 

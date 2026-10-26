@@ -54,8 +54,12 @@ tt kill eager_borg
 ```
 
 Daemon-backed commands (`exec`, `view`, `keys`, ...) auto-start a background
-daemon on first use. It idles out 30s after the last terminal is closed.
-Override with `TABDANCE_TEST_SOCK` and `TABDANCE_TEST_IDLE_TIMEOUT`.
+daemon on first use — one shared daemon for all projects. Terminals carry
+the tag of their creating project, so `tt ls` shows only the terminals of
+your shell's project (`tt ls --all` for everything); direct-ID commands
+work across projects. The daemon idles out 30s after the last terminal
+is closed (disable with `TABDANCE_TEST_IDLE_TIMEOUT=0`); the socket
+directory filesystem location can be moved with `TABDANCE_TEST_SOCK`.
 
 ### Golden file testing (CI-friendly)
 

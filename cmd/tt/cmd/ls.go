@@ -10,10 +10,10 @@ import (
 
 var lsCmd = &cobra.Command{
 	Use:   "ls",
-	Short: "List active terminals",
+	Short: "List active terminals in this project (--all for every project)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := newClient()
-		infos, err := c.Ls()
+		infos, err := c.Ls(lsAllOutput)
 		if err != nil {
 			return err
 		}
@@ -30,13 +30,21 @@ var lsCmd = &cobra.Command{
 		}
 
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tCOLS\tROWS\tRECORDING\tCOMMAND")
+		if lsAllOutput {
+			fmt.Fprintln(w, "ID\tCOLS\tROWS\tRECORDING\tPROJECT\tCOMMAND")
+		} else {
+			fmt.Fprintln(w, "ID\tCOLS\tROWS\tRECORDING\tCOMMAND")
+		}
 		for _, info := range infos {
 			rec := "-"
 			if info.Recording {
 				rec = "yes"
 			}
-			fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\n", info.ID, info.Cols, info.Rows, rec, info.Command)
+			if lsAllOutput {
+				fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\t%s\n", info.ID, info.Cols, info.Rows, rec, info.Project, info.Command)
+			} else {
+				fmt.Fprintf(w, "%s\t%d\t%d\t%s\t%s\n", info.ID, info.Cols, info.Rows, rec, info.Command)
+			}
 		}
 		w.Flush()
 		return nil
@@ -44,8 +52,10 @@ var lsCmd = &cobra.Command{
 }
 
 var lsJsonOutput bool
+var lsAllOutput bool
 
 func init() {
 	lsCmd.Flags().BoolVar(&lsJsonOutput, "json", false, "output as JSON")
+	lsCmd.Flags().BoolVar(&lsAllOutput, "all", false, "list terminals of all projects")
 	rootCmd.AddCommand(lsCmd)
 }

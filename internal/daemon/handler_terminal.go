@@ -25,6 +25,10 @@ func createConfigFrom(req Request) terminal.CreateConfig {
 	if scrollback == 0 {
 		scrollback = 10000
 	}
+	project := req.GetString("project")
+	if project == "" {
+		project = SessionKey()
+	}
 	return terminal.CreateConfig{
 		Cols:             cols,
 		Rows:             rows,
@@ -32,6 +36,7 @@ func createConfigFrom(req Request) terminal.CreateConfig {
 		Command:          req.GetString("command"),
 		Env:              envMap(req),
 		WorkingDirectory: req.GetString("working_directory"),
+		ProjectKey:       project,
 	}
 }
 
@@ -42,8 +47,8 @@ func zeroOrTwo(v float64) float64 {
 	return v
 }
 
-func (d *Daemon) handleLs(_ Request) Response {
-	return SuccessResponse(d.svc.List())
+func (d *Daemon) handleLs(req Request) Response {
+	return SuccessResponse(d.svc.List(req.GetString("project"), req.GetBool("all")))
 }
 
 func (d *Daemon) handleInspect(req Request) Response {

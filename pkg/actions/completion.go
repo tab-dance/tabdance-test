@@ -11,7 +11,7 @@ func ActionTerminalIDs() carapace.Action {
 			return carapace.ActionValues()
 		}
 		cl := client.New()
-		infos, err := cl.Ls()
+		infos, err := cl.Ls(false)
 		if err != nil {
 			return carapace.ActionValues()
 		}

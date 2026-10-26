@@ -26,6 +26,7 @@ type ManagedTerminal struct {
 	Command      string
 	Cols         uint16
 	Rows         uint16
+	ProjectKey   string
 
 	mu          sync.Mutex
 	ptmxPtr     *atomic.Pointer[os.File]
@@ -57,6 +58,10 @@ type CreateConfig struct {
 	Command          string
 	Env              map[string]string
 	WorkingDirectory string
+	// ProjectKey tags the creating project (daemon.SessionKey of the
+	// client shell). ls scopes to the caller's key; direct-ID operations
+	// work across projects. Empty means untagged (visible via ls --all only).
+	ProjectKey string
 }
 
 func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
@@ -104,6 +109,7 @@ func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
 		Command:      cfg.Command,
 		Cols:         cfg.Cols,
 		Rows:         cfg.Rows,
+		ProjectKey:   cfg.ProjectKey,
 		done:         make(chan struct{}),
 	}
 

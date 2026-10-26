@@ -122,6 +122,7 @@ type TerminalInfo struct {
 	Recording bool   `json:"recording"`
 	Exited    bool   `json:"exited"`
 	ExitCode  int    `json:"exit_code"`
+	Project   string `json:"project"`
 }
 
 func (m *TerminalManager) List() []TerminalInfo {
@@ -139,6 +140,7 @@ func (m *TerminalManager) List() []TerminalInfo {
 			Recording: mt.IsRecording(),
 			Exited:    mt.exited,
 			ExitCode:  mt.exitCode,
+			Project:   mt.ProjectKey,
 		})
 		mt.mu.Unlock()
 	}
