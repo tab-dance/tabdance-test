@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 
+	libghostty "go.mitchellh.com/libghostty"
+
 	"github.com/tab-dance/tabdance-test/internal/inspect"
 )
 
@@ -17,6 +19,34 @@ func (s *Service) View(id, format string, trim, unwrap bool) (*inspect.ViewResul
 	mt.Lock()
 	defer mt.Unlock()
 	return inspect.GetView(mt.Terminal, format, trim, unwrap)
+}
+
+// FollowFrame renders the next live-view frame for a follow consumer.
+// state carries what that consumer was last shown across calls; the frame
+// is skipped when nothing changed (ok=false) so follow stays quiet when
+// the terminal is idle.
+func (s *Service) FollowFrame(id string, state *inspect.FrameState, trim, unwrap bool) (frame string, ok bool, err error) {
+	mt, err := s.terminals.Get(id)
+	if err != nil {
+		return "", false, err
+	}
+	mt.Lock()
+	defer mt.Unlock()
+
+	content, err := inspect.RenderFollowContent(mt.Terminal, trim, unwrap)
+	if err != nil {
+		return "", false, err
+	}
+	screen, _ := mt.Terminal.ActiveScreen()
+	screenStr := "primary"
+	if screen == libghostty.ScreenAlternate {
+		screenStr = "alternate"
+	}
+	frame, changed := state.Frame(&inspect.ViewResult{
+		Content:      content,
+		ActiveScreen: screenStr,
+	})
+	return frame, changed, nil
 }
 
 func (s *Service) Cursor(id string) (*inspect.CursorResult, error) {

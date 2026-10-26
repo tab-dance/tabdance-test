@@ -105,12 +105,13 @@ tt
 ├── exec <command>               # Create terminal, print ID
 │   --cols / --rows / --scrollback / --env / --working-directory / --term
 │   --record <path>
-│   (attach separately via `attach <id>`)
+│   (attach separately via `attach <id>`; watch via `view <id> --follow`)
 ├── ls                           # List active terminals (--json)
 ├── inspect <id>                 # Terminal details (--json)
-├── attach <id>                  # Stream PTY output (Ctrl+C to detach)
+├── attach <id>                  # Stream raw PTY output from attach time (tail semantics; Ctrl+C to detach)
 ├── rm <id>                      # Remove/close terminal (hidden `kill` alias kept)
 ├── view <id>                    # Print screen content (--format, --json; plain when piped, vt on a terminal)
+│                                # --follow streams re-rendered complete frames (watching; Ctrl+C to detach)
 ├── cursor <id>                  # Print cursor state (--json)
 ├── size <id>                    # Print dimensions (--json)
 ├── cell <id> <x> <y>           # Inspect cell (--json)
@@ -196,6 +197,7 @@ internal/
     handler_tape.go          # Daemon handlers: resize(input.go), tape, wait
     handler_golden.go        # Daemon handlers: verify, snapshot
     handler_recording.go     # Daemon handlers: record, stop, marker, attach, output
+    handler_follow.go        # Daemon handler: follow (rendered frame streaming)
   client/
     client.go                # Client struct, connect, Call
     daemon.go                # Auto-start logic: EnsureDaemon, IsDaemonRunning
@@ -299,8 +301,8 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 - **Scroll mouse actions**: `scroll_up`/`scroll_down` translated to button 4/5 press+release sequences.
 - **All go-libghostty getters return `(value, error)`**: e.g., `CursorX() (uint16, error)`, `Cols() (uint16, error)`.
 - **mcp-go CallToolRequest**: Use `req.GetString()`, `req.GetInt()`, `req.GetBool()`, `req.RequireString()`, `req.RequireInt()` — NOT `req.Params.Arguments["key"]`.
-- **Output subscriber pattern**: `ManagedTerminal` broadcasts PTY output to subscribers via channels. `Subscribe()` returns an `outputSubscriber` with a `Channel()` method. Used by `attach` command to stream output without competing with `ptyReadLoop`.
-- **Daemon protocol**: JSON-RPC over Unix socket. Each request is one JSON line, each response is one JSON line. `attach` is special: after the initial request, the daemon streams raw PTY output bytes to the client connection.
+- **Output subscriber pattern**: `ManagedTerminal` broadcasts PTY output to subscribers via channels. `Subscribe()` returns an `outputSubscriber` whose `Channel()` streams child bytes; registration under the terminal mutex keeps attach streams gapless, delivery blocks under backpressure (raw chunks cannot be dropped without corrupting escape sequences), chunks are copied out of the reused read buffer, and `Unsubscribe`/`Close` terminate the consumer's range loop. Two consumers build on it: `attach` streams raw PTY bytes (tail semantics, for diagnostics and piping), `view --follow` re-renders complete screen frames on a 50ms debounce (stateful watching that never garbles, see follow frame protocol).
+- **Daemon protocol**: JSON-RPC over Unix socket. Each request is one JSON line, each response is one JSON line. `attach` and `follow` are special: after the initial request the daemon streams bytes to the client connection — `attach` raw PTY output, `follow` one JSON response per rendered screen frame. Frames are wrapped in synchronized updates (CSI 2026), erased before paint, and carry mode/style/cursor state from the formatter's extra emission, so every frame is a full-state repaint. Alternate-screen transitions between frames are handled by `inspect.FrameState` (the renderer mirrors only enabled modes, so the primary-following-altscreen frame prepends `?1049l` itself).
 - **CLI output format**: Human-readable by default, `--json` flag for machine-parseable output.
 - **Init-style subcommand registration**: Each subcommand file declares a package-level `*cobra.Command` var and registers it via `rootCmd.AddCommand()` in an `init()` function. No central list of subcommands in root.go.
 - **Carapace completion actions**: Defined in `pkg/actions/` (`ActionTerminalIDs`, `ActionKeyNames`). Command files import and use them directly.

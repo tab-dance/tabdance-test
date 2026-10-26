@@ -243,6 +243,11 @@ func (d *Daemon) handleConn(conn net.Conn) {
 			return
 		}
 
+		if req.Method == "follow" {
+			d.handleFollow(req, conn)
+			return
+		}
+
 		resp := d.handleRequest(req)
 
 		if err := enc.Encode(resp); err != nil {
