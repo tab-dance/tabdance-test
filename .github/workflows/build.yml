@@ -98,7 +98,7 @@ jobs:
 
   test-macos:
     name: go test (macos, arm64)
-    runs-on: macos-14
+    runs-on: macos-latest
     # Master-only: darwin regressions are still gated before release (tags
     # come off master) without adding slow macOS runs to every PR. Use
     # workflow_dispatch to validate a PR branch manually when needed.
