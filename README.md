@@ -21,8 +21,6 @@ Two interfaces, same capabilities:
 ```sh
 # from source (builds libghostty-vt from the deps/ghostty submodule)
 make build-static
-
-# release archives are published for GitHub releases (linux amd64/arm64)
 ```
 
 Requirements: Go 1.26+, Zig, and the `deps/ghostty` git submodule
