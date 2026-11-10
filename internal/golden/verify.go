@@ -21,7 +21,7 @@ func (r VerifyResult) ToJSON() string {
 }
 
 func VerifyOutput(terminal *libghostty.Terminal, goldenPath string, format string, trim, unwrap bool) (*VerifyResult, error) {
-	actual, err := getTerminalContent(terminal, format, trim, unwrap)
+	actual, err := inspect.RenderContent(terminal, format, trim, unwrap)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func VerifyOutput(terminal *libghostty.Terminal, goldenPath string, format strin
 }
 
 func UpdateGolden(terminal *libghostty.Terminal, goldenPath string, format string, trim, unwrap bool) error {
-	content, err := getTerminalContent(terminal, format, trim, unwrap)
+	content, err := inspect.RenderContent(terminal, format, trim, unwrap)
 	if err != nil {
 		return err
 	}
@@ -95,44 +95,5 @@ func UpdateGolden(terminal *libghostty.Terminal, goldenPath string, format strin
 // Capture renders the current terminal content with the given formatter
 // style — the primitive behind golden sections and single-screen verify.
 func Capture(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {
-	return getTerminalContent(terminal, format, trim, unwrap)
-}
-
-func getTerminalContent(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {
-	switch format {
-	case "json":
-		return inspect.RenderJSONGrid(terminal)
-	case "svg":
-		svg, err := inspect.RenderSVG(terminal, trim, unwrap)
-		if err != nil {
-			return "", err
-		}
-		return svg, nil
-	default:
-		f, err := libghostty.NewFormatter(terminal,
-			libghostty.WithFormatterFormat(parseFormat(format)),
-			libghostty.WithFormatterTrim(trim),
-			libghostty.WithFormatterUnwrap(unwrap),
-		)
-		if err != nil {
-			return "", err
-		}
-		defer f.Close()
-		content, err := f.FormatString()
-		if err != nil {
-			return "", err
-		}
-		return content, nil
-	}
-}
-
-func parseFormat(s string) libghostty.FormatterFormat {
-	switch s {
-	case "vt":
-		return libghostty.FormatterFormatVT
-	case "html":
-		return libghostty.FormatterFormatHTML
-	default:
-		return libghostty.FormatterFormatPlain
-	}
+	return inspect.RenderContent(terminal, format, trim, unwrap)
 }
