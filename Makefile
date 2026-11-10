@@ -1,7 +1,7 @@
 GHOSTTY_DIR := deps/ghostty
 ZIG ?= zig
 LIB := $(CURDIR)/$(GHOSTTY_DIR)/zig-out/lib/libghostty-vt.a
-PKG_CONFIG_PATH := $(CURDIR)/$(GHOSTTY_DIR)/zig-out/share/pkgconfig
+PKG_CONFIG_PATH := $(CURDIR)/$(GHOSTTY_DIR)/zig-out/lib/pkgconfig
 LD_LIBRARY_PATH := $(CURDIR)/$(GHOSTTY_DIR)/zig-out/lib
 BUILD_FLAGS :=
 
@@ -28,13 +28,13 @@ MACOS_CC := $(CURDIR)/scripts/zig-cc-darwin.sh
 
 build-darwin-arm64: build-lib
 	cd $(GHOSTTY_DIR) && $(ZIG) build -Demit-lib-vt -Doptimize=ReleaseFast -Dtarget=aarch64-macos --prefix $(CURDIR)/dist/lib/darwin_arm64
-	PKG_CONFIG_PATH=$(CURDIR)/dist/lib/darwin_arm64/share/pkgconfig \
+	PKG_CONFIG_PATH=$(CURDIR)/dist/lib/darwin_arm64/lib/pkgconfig \
 	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 CC="$(MACOS_CC) aarch64-macos" \
 	go build -ldflags "-w -extldflags '-L $(MACOS_STUBS) -F $(MACOS_STUBS)'" -o tt-darwin-arm64 ./cmd/tt/
 
 build-darwin-amd64: build-lib
 	cd $(GHOSTTY_DIR) && $(ZIG) build -Demit-lib-vt -Doptimize=ReleaseFast -Dtarget=x86_64-macos --prefix $(CURDIR)/dist/lib/darwin_amd64
-	PKG_CONFIG_PATH=$(CURDIR)/dist/lib/darwin_amd64/share/pkgconfig \
+	PKG_CONFIG_PATH=$(CURDIR)/dist/lib/darwin_amd64/lib/pkgconfig \
 	CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="$(MACOS_CC) x86_64-macos" \
 	go build -ldflags "-w -extldflags '-L $(MACOS_STUBS) -F $(MACOS_STUBS)'" -o tt-darwin-amd64 ./cmd/tt/
 

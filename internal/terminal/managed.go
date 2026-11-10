@@ -86,7 +86,7 @@ func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
 		term.Close()
 		return nil, fmt.Errorf("create key encoder: %w", err)
 	}
-	keyEnc.SetOptFromTerminal(term)
+	keyEnc.SetFromTerminal(term)
 
 	mouseEnc, err := libghostty.NewMouseEncoder()
 	if err != nil {
@@ -94,7 +94,7 @@ func NewManagedTerminal(id string, cfg CreateConfig) (*ManagedTerminal, error) {
 		term.Close()
 		return nil, fmt.Errorf("create mouse encoder: %w", err)
 	}
-	mouseEnc.SetOptFromTerminal(term)
+	mouseEnc.SetFromTerminal(term)
 
 	m := &ManagedTerminal{
 		ID:           id,
@@ -251,8 +251,8 @@ func (m *ManagedTerminal) Resize(cols, rows uint16) error {
 	m.Cols = cols
 	m.Rows = rows
 
-	m.KeyEncoder.SetOptFromTerminal(m.Terminal)
-	m.MouseEncoder.SetOptFromTerminal(m.Terminal)
+	m.KeyEncoder.SetFromTerminal(m.Terminal)
+	m.MouseEncoder.SetFromTerminal(m.Terminal)
 
 	if rec := m.recPtr.Load(); rec != nil {
 		rec.WriteResize(int(cols), int(rows))

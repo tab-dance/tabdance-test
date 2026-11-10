@@ -19,7 +19,7 @@ builds:
       # Absolute path is required: cgo runs pkg-config from the
       # go.mitchellh.com/libghostty module directory, so relative
       # PKG_CONFIG_PATH entries are not resolved.
-      - PKG_CONFIG_PATH={{ .Env.GITHUB_WORKSPACE }}/dist/lib/{{ .Target }}/share/pkgconfig
+      - PKG_CONFIG_PATH={{ .Env.GITHUB_WORKSPACE }}/dist/lib/{{ .Target }}/lib/pkgconfig
     hooks:
       pre:
         - cmd: ./scripts/build-lib.sh {{ .Target }}

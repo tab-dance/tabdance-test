@@ -9,7 +9,7 @@ require (
 	github.com/mark3labs/mcp-go v1.3.0
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cobra v1.10.2
-	go.mitchellh.com/libghostty v0.0.0-20261021212106-df1957cbff56
+	go.mitchellh.com/libghostty v0.0.0-20261107144202-b13f277ddcb2
 )
 
 require (
