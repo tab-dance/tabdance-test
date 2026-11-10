@@ -16,29 +16,28 @@ type ViewResult struct {
 	ActiveScreen  string `json:"active_screen"`
 }
 
-func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*ViewResult, error) {
-	var fmtFormat libghostty.FormatterFormat
-	var content string
-	var err error
-
+// RenderContent renders the terminal screen in the given format. It is the
+// single rendering primitive shared by view, snapshot/verify and wait, so
+// every surface formats a screen identically.
+func RenderContent(term *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {
 	switch format {
 	case "plain":
-		fmtFormat = libghostty.FormatterFormatPlain
-		content, err = formatTerminal(term, fmtFormat, trim, unwrap)
+		return formatTerminal(term, libghostty.FormatterFormatPlain, trim, unwrap)
 	case "vt":
-		fmtFormat = libghostty.FormatterFormatVT
-		content, err = formatTerminal(term, fmtFormat, trim, unwrap)
+		return formatTerminal(term, libghostty.FormatterFormatVT, trim, unwrap)
 	case "html":
-		fmtFormat = libghostty.FormatterFormatHTML
-		content, err = formatTerminal(term, fmtFormat, trim, unwrap)
+		return formatTerminal(term, libghostty.FormatterFormatHTML, trim, unwrap)
 	case "svg":
-		content, err = RenderSVG(term, trim, unwrap)
+		return RenderSVG(term, trim, unwrap)
 	case "json":
-		content, err = RenderJSONGrid(term)
+		return RenderJSONGrid(term)
 	default:
-		return nil, fmt.Errorf("unknown format %q", format)
+		return "", fmt.Errorf("unknown format %q", format)
 	}
+}
 
+func GetView(term *libghostty.Terminal, format string, trim, unwrap bool) (*ViewResult, error) {
+	content, err := RenderContent(term, format, trim, unwrap)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	libghostty "go.mitchellh.com/libghostty"
+
+	"github.com/tab-dance/tabdance-test/internal/inspect"
 )
 
 type WaitForOptions struct {
@@ -85,32 +87,7 @@ func normalizeScope(scope string) string {
 }
 
 func getTerminalContent(terminal *libghostty.Terminal, format string, trim, unwrap bool) (string, error) {
-	f, err := libghostty.NewFormatter(terminal,
-		libghostty.WithFormatterFormat(parseFormat(format)),
-		libghostty.WithFormatterTrim(trim),
-		libghostty.WithFormatterUnwrap(unwrap),
-	)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	content, err := f.FormatString()
-	if err != nil {
-		return "", err
-	}
-	return content, nil
-}
-
-func parseFormat(s string) libghostty.FormatterFormat {
-	switch s {
-	case "vt":
-		return libghostty.FormatterFormatVT
-	case "html":
-		return libghostty.FormatterFormatHTML
-	default:
-		return libghostty.FormatterFormatPlain
-	}
+	return inspect.RenderContent(terminal, format, trim, unwrap)
 }
 
 // Repr renders raw PTY bytes with control characters shown, for putting
