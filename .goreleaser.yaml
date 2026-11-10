@@ -64,7 +64,7 @@ aurs:
   -
     description: "Headless terminal testing"
     homepage: "https://github.com/tab-dance/tabdance-test"
-    license: "custom"
+    license: "MIT"
     maintainers:
       - rsteube <rsteube@users.noreply.github.com>
     private_key: '{{ .Env.AUR_KEY }}'
