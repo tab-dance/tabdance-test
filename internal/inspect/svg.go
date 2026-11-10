@@ -117,11 +117,11 @@ func (r *svgRenderer) buildSVG(trim, unwrap bool) {
 			r.colors = colors
 			if cs, err := rs.CursorVisualStyle(); err == nil {
 				switch cs {
-				case libghostty.CursorVisualStyleBlock:
+				case libghostty.CursorStyleBlock:
 					cursorStyle = "block"
-				case libghostty.CursorVisualStyleUnderline:
+				case libghostty.CursorStyleUnderline:
 					cursorStyle = "underline"
-				case libghostty.CursorVisualStyleBlockHollow:
+				case libghostty.CursorStyleBlockHollow:
 					cursorStyle = "block_hollow"
 				default:
 					cursorStyle = "bar"

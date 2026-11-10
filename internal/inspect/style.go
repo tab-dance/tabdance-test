@@ -24,11 +24,11 @@ func cursorStyleString(term *libghostty.Terminal) string {
 	}
 
 	switch cs {
-	case libghostty.CursorVisualStyleBlock:
+	case libghostty.CursorStyleBlock:
 		return "block"
-	case libghostty.CursorVisualStyleUnderline:
+	case libghostty.CursorStyleUnderline:
 		return "underline"
-	case libghostty.CursorVisualStyleBlockHollow:
+	case libghostty.CursorStyleBlockHollow:
 		return "block_hollow"
 	default:
 		return "bar"

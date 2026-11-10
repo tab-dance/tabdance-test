@@ -82,15 +82,17 @@ func RenderFollowContent(term *libghostty.Terminal, trim, unwrap bool) (string, 
 		libghostty.WithFormatterFormat(libghostty.FormatterFormatVT),
 		libghostty.WithFormatterTrim(trim),
 		libghostty.WithFormatterUnwrap(unwrap),
-		libghostty.WithFormatterExtraModes(true),
-		libghostty.WithFormatterExtraCursor(true),
-		libghostty.WithFormatterExtraStyle(true),
-		libghostty.WithFormatterExtraKittyKeyboard(true),
-		libghostty.WithFormatterExtraKeyboard(true),
-		libghostty.WithFormatterExtraScrollingRegion(true),
-		libghostty.WithFormatterExtraTabstops(true),
-		libghostty.WithFormatterExtraProtection(true),
-		libghostty.WithFormatterExtraCharsets(true),
+		libghostty.WithFormatterExtras(
+			libghostty.FormatterExtraModes|
+				libghostty.FormatterExtraCursor|
+				libghostty.FormatterExtraStyle|
+				libghostty.FormatterExtraKittyKeyboard|
+				libghostty.FormatterExtraKeyboard|
+				libghostty.FormatterExtraScrollingRegion|
+				libghostty.FormatterExtraTabstops|
+				libghostty.FormatterExtraProtection|
+				libghostty.FormatterExtraCharsets,
+		),
 	)
 	if err != nil {
 		return "", fmt.Errorf("create formatter: %w", err)
