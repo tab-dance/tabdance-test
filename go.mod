@@ -6,7 +6,7 @@ require (
 	github.com/carapace-sh/carapace v1.16.3
 	github.com/charmbracelet/vhs v0.12.1
 	github.com/creack/pty v1.1.24
-	github.com/mark3labs/mcp-go v1.3.0
+	github.com/mark3labs/mcp-go v1.5.0
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cobra v1.10.2
 	go.mitchellh.com/libghostty v0.0.0-20261107144202-b13f277ddcb2
