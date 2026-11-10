@@ -14,12 +14,6 @@ jobs:
   build:
     name: goreleaser snapshot build
     runs-on: ubuntu-24.04
-    env:
-      # Linux-hosted cross builds of the macOS targets have no Apple SDK, so
-      # they link the stub .tbd files in scripts/macos-stubs. A macOS host
-      # must leave this empty: there the real SDK frameworks are linked and
-      # passing the stubs too would emit duplicate dylib load commands.
-      TT_DARWIN_EXTRA_LDFLAGS: -L ${{ github.workspace }}/scripts/macos-stubs -F ${{ github.workspace }}/scripts/macos-stubs
     steps:
       - name: Checkout (with ghostty submodule)
         uses: actions/checkout@v4
@@ -137,12 +131,6 @@ jobs:
           distribution: goreleaser
           version: latest
           args: build --snapshot --clean --single-target
-        env:
-          # Empty on a macOS host: the stub .tbd files are only for
-          # Linux-hosted cross builds. This host links the real SDK
-          # frameworks, and adding the stubs on top of them duplicates the
-          # CoreFoundation load command, which dyld rejects at load time.
-          TT_DARWIN_EXTRA_LDFLAGS: ""
 
       - name: Smoke test release binary
         run: |

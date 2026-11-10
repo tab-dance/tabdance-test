@@ -38,6 +38,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
-          # This runner is Linux and has no Apple SDK, so the darwin targets
-          # link the stub .tbd files in scripts/macos-stubs.
-          TT_DARWIN_EXTRA_LDFLAGS: -L ${{ github.workspace }}/scripts/macos-stubs -F ${{ github.workspace }}/scripts/macos-stubs
