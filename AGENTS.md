@@ -29,8 +29,9 @@ Ghostty is included as a git submodule at `deps/ghostty` (tracking Ghostty `main
 
 ## Releasing
 
-Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleaser on ubuntu-24.04 to build Linux and macOS binaries (amd64 + arm64 each) and publish a draft GitHub release with tar.gz archives and checksums. Key points:
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs goreleaser on ubuntu-24.04 to build Linux and macOS binaries (amd64 + arm64 each), publish a draft GitHub release with tar.gz archives and checksums, and push an AUR package built from the Linux archives. Key points:
 
+- AUR publishing (`aurs` in `.goreleaser.yaml`) needs the `AUR_KEY` repository secret: an SSH private key whose public key is registered on the maintainer's AUR account. goreleaser writes it to a temp file and pushes `PKGBUILD`/`.SRCINFO` to `ssh://aur@aur.archlinux.org/tabdance-test-bin.git`; goreleaser appends `-bin` to `aurs.name` when missing, and defaults `provides`/`conflicts` to the project name. The explicit `package` function installs the `tt` binary from the Linux archive.
 - `.goreleaser.yaml` uses the Go builder with a `hooks.pre` script (`scripts/build-lib.sh <target>`) that cross-compiles `libghostty-vt` per target into `dist/lib/<target>` with `zig build -Dtarget=...`. Each target gets its own pkg-config tree so parallel builds don't clobber each other.
 - `PKG_CONFIG_PATH` must be absolute (cgo runs pkg-config from the go.mitchellh.com/libghostty module directory), hence the `GITHUB_WORKSPACE` template.
 - Cross-linking uses `zig cc -target <triple>` as `CC` per target (see `overrides`).

@@ -9,7 +9,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "tt",
-	Short: "Headless terminal testing using go-libghostty",
+	Short: "Headless terminal testing",
 }
 
 func init() {

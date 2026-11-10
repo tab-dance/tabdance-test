@@ -55,6 +55,16 @@ archives:
 checksum:
   name_template: checksums.txt
 
+aurs:
+  -
+    description: "Headless terminal testing"
+    homepage: "https://github.com/tab-dance/tabdance-test"
+    license: "custom"
+    maintainers:
+      - rsteube <rsteube@users.noreply.github.com>
+    private_key: '{{ .Env.AUR_KEY }}'
+    git_url: 'ssh://aur@aur.archlinux.org/tabdance-test-bin.git'
+
 changelog:
   use: github
 
