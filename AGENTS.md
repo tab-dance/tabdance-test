@@ -262,31 +262,31 @@ skills/                       # Crush skill references (ghostty, asciinema, vhs)
 
 22 tools registered in `tools.go:registerTools()`:
 
-|| Tool | Input | Output |
-||------|-------|--------|
-|| `create_terminal` | cols, rows, scrollback, command, env, working_directory | terminal_id, cols, rows |
-|| `list_terminals` | — | terminals[] (id, cols, rows, command, recording, exited, exit_code) |
-|| `close_terminal` | terminal_id | — |
-|| `reset_terminal` | terminal_id | — |
-|| `resize` | terminal_id, cols, rows | — |
-|| `send_keys` | terminal_id, keys[] | — |
-|| `send_text` | terminal_id, text | — |
-|| `send_mouse` | terminal_id, action, button, x, y, mods | — |
-|| `send_focus` | terminal_id, event | — |
-|| `send_paste` | terminal_id, text | — |
-|| `get_view` | terminal_id, format, trim, unwrap | content, cursor_x, cursor_y, cursor_visible, cursor_style, active_screen |
-|| `get_cell` | terminal_id, x, y | codepoint, text, wide, bold, italic, fg, bg, hyperlink |
-|| `get_cursor` | terminal_id | x, y, visible, style, pending_wrap |
-|| `get_size` | terminal_id | cols, rows, width_px, height_px |
-|| `start_recording` | terminal_id, output_path, idle_time_limit | — |
-|| `stop_recording` | terminal_id | — |
-|| `add_marker` | terminal_id, label | — |
-|| `play_tape` | terminal_id, tape_path, timeout | — |
+| Tool | Input | Output |
+|------|-------|--------|
+| `create_terminal` | cols, rows, scrollback, command, env, working_directory | terminal_id, cols, rows |
+| `list_terminals` | — | terminals[] (id, cols, rows, command, recording, exited, exit_code) |
+| `close_terminal` | terminal_id | — |
+| `reset_terminal` | terminal_id | — |
+| `resize` | terminal_id, cols, rows | — |
+| `send_keys` | terminal_id, keys[] | — |
+| `send_text` | terminal_id, text | — |
+| `send_mouse` | terminal_id, action, button, x, y, mods | — |
+| `send_focus` | terminal_id, event | — |
+| `send_paste` | terminal_id, text | — |
+| `get_view` | terminal_id, format, trim, unwrap | content, cursor_x, cursor_y, cursor_visible, cursor_style, active_screen |
+| `get_cell` | terminal_id, x, y | codepoint, text, wide, bold, italic, fg, bg, hyperlink |
+| `get_cursor` | terminal_id | x, y, visible, style, pending_wrap |
+| `get_size` | terminal_id | cols, rows, width_px, height_px |
+| `start_recording` | terminal_id, output_path, idle_time_limit | — |
+| `stop_recording` | terminal_id | — |
+| `add_marker` | terminal_id, label | — |
+| `play_tape` | terminal_id, tape_path, timeout | — |
 | `get_output` | terminal_id, bytes | recent raw PTY output (control bytes rendered) |
 | `run_tape` | tape_path, timeout, golden_path, update, strict | match JSON (+exit_code/exit_signal when the child exited); tool error with diff on mismatch |
-|| `verify_output` | terminal_id, golden_path, format, trim, unwrap | JSON match result; tool error with diff on mismatch |
-|| `update_golden` | terminal_id, golden_path, format, trim, unwrap | — |
-|| `wait_for` | terminal_id, pattern, scope, timeout, format, trim, unwrap | found, elapsed_ms; tool error on timeout |
+| `verify_output` | terminal_id, golden_path, format, trim, unwrap | JSON match result; tool error with diff on mismatch |
+| `update_golden` | terminal_id, golden_path, format, trim, unwrap | — |
+| `wait_for` | terminal_id, pattern, scope, timeout, format, trim, unwrap | found, elapsed_ms; tool error on timeout |
 
 ## Conventions & Patterns
 
