@@ -33,20 +33,25 @@ builds:
         goarch: arm64
         env:
           - CC=zig cc -target aarch64-linux-gnu
+      # The stub framework paths live in TT_DARWIN_EXTRA_LDFLAGS so they are
+      # only applied by a Linux-hosted cross build. On a macOS host the real
+      # SDK frameworks are linked instead: passing the stubs there resolves
+      # each -framework to two different files, producing duplicate dylib
+      # load commands that dyld rejects with exit code 134.
       - goos: darwin
         goarch: amd64
         env:
           - CC=zig cc -target x86_64-macos
         ldflags:
           - -s -w -X github.com/tab-dance/tabdance-test/internal/version.Version={{ .Version }}
-            -extldflags "-L {{ .Env.GITHUB_WORKSPACE }}/scripts/macos-stubs -F {{ .Env.GITHUB_WORKSPACE }}/scripts/macos-stubs"
+            -extldflags "{{ .Env.TT_DARWIN_EXTRA_LDFLAGS }}"
       - goos: darwin
         goarch: arm64
         env:
           - CC=zig cc -target aarch64-macos
         ldflags:
           - -s -w -X github.com/tab-dance/tabdance-test/internal/version.Version={{ .Version }}
-            -extldflags "-L {{ .Env.GITHUB_WORKSPACE }}/scripts/macos-stubs -F {{ .Env.GITHUB_WORKSPACE }}/scripts/macos-stubs"
+            -extldflags "{{ .Env.TT_DARWIN_EXTRA_LDFLAGS }}"
 
 archives:
   - formats: [tar.gz]
