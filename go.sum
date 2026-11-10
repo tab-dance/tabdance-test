@@ -1,7 +1,7 @@
-github.com/carapace-sh/carapace v1.16.3 h1:oM8SUvbavyEaE0Lnvurs6ty4ENB+9rWP4lo4prxXBJM=
-github.com/carapace-sh/carapace v1.16.3/go.mod h1:5MUSHyLN9GGb5/NY/j9VI68/TcZV4ApRCAHGg4WeU0s=
-github.com/carapace-sh/carapace-shlex v1.1.1 h1:ccmNeetAYZOk4IcV36youFDsXusT9uCNW2Njkw+QS+Q=
-github.com/carapace-sh/carapace-shlex v1.1.1/go.mod h1:lJ4ZsdxytE0wHJ8Ta9S7Qq0XpjgjU0mdfCqiI2FHx7M=
+github.com/carapace-sh/carapace v1.18.1 h1:KfjKFpQXF0eYSl53qYWJTVXy5ZmlnUxyaQw2tan05Zw=
+github.com/carapace-sh/carapace v1.18.1/go.mod h1:8uVmChnqwPIViNJ+Db6U5JXjM6Eb9b0+g4YctZgtQRw=
+github.com/carapace-sh/carapace-shlex/v2 v2.1.4 h1:v6YFX1MqaSQSzISZN1sa28Y6aFD4zGXiMkg4xJkAMI0=
+github.com/carapace-sh/carapace-shlex/v2 v2.1.4/go.mod h1:07CXBqTrzzdZRgkFRpnDQ9zvIcGbKppjmaxNLyP+zgY=
 github.com/charmbracelet/vhs v0.12.1 h1:pgXHWVGAx3pjBPaZMVvcyoCBPsYSQoGODWPrsZ5LIEg=
 github.com/charmbracelet/vhs v0.12.1/go.mod h1:ol7w6PmDFhiherZa+pLQICGGTJexcyOsDJoUBgqypLY=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
@@ -48,12 +48,12 @@ github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT0
 go.mitchellh.com/libghostty v0.0.0-20261107144202-b13f277ddcb2 h1:iTuAheqDQPb07qiRSc1b1p7s+dwFIbH7wUktPrrngvU=
 go.mitchellh.com/libghostty v0.0.0-20261107144202-b13f277ddcb2/go.mod h1:sx8yDvnDrQC/PzsrFfYx7ROmH8my91nz7lOxQb6sbo0=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
+go.yaml.in/yaml/v3 v3.0.6 h1:zcDfvjXEqTQmpjniUBLc91xYJMB2c4QOFxEF/LCEckM=
+go.yaml.in/yaml/v3 v3.0.6/go.mod h1:HVTZu1O7/Vkt2N+BFy8Zza+lnLsABggaTM2ZpNIGuKg=
 golang.org/x/text v0.43.0 h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=
 golang.org/x/text v0.43.0/go.mod h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=
 golang.org/x/tools v0.51.0 h1:k4Xc/1Om9jwkBJBo4NVLMSARBoWtK10mx+W5BnXCeAI=
 golang.org/x/tools v0.51.0/go.mod h1:9eEncMayCV6zRMGhR5eZEC2iBx98qWcF1HZ9Z7wJOoA=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
-gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
-gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
